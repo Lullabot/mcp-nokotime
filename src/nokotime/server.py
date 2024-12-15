@@ -76,36 +76,18 @@ class NokoServer:
             if not request_context or not request_context.session:
                 raise ValueError("No request context available")
 
-            # Get environment variables from the session
+            # Get environment variables from the client parameters
             session = request_context.session
             api_token = None
 
             # Log the session object for debugging
             logger.debug("Session object: %s", session)
-            logger.debug("Session dir: %s", dir(session))
+            logger.debug("Client params: %s", session.client_params)
 
-            # Try multiple ways to access environment
-            try:
-                # Try accessing environment directly
-                env = getattr(session, "env", None)
-                if env:
-                    api_token = env.get("NOKO_API_TOKEN")
-                    logger.debug("Got token from session.env")
-                
-                # Try accessing through environment property
-                if not api_token and hasattr(session, "environment"):
-                    api_token = session.environment.get("NOKO_API_TOKEN")
-                    logger.debug("Got token from session.environment")
-                
-                # Try accessing through _env
-                if not api_token and hasattr(session, "_env"):
-                    api_token = session._env.get("NOKO_API_TOKEN")
-                    logger.debug("Got token from session._env")
-
-                logger.debug("API token found: %s", bool(api_token))
-            except Exception as e:
-                logger.error("Error accessing environment: %s", e, exc_info=True)
-                raise ValueError(f"Could not access environment variables: {str(e)}") from e
+            # Try to get the token from client parameters
+            if session.client_params and session.client_params.env:
+                api_token = session.client_params.env.get("NOKO_API_TOKEN")
+                logger.debug("Got token from client params")
 
             if not api_token:
                 logger.error("NOKO_API_TOKEN not found in environment")
