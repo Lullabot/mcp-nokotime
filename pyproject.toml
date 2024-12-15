@@ -1,24 +1,18 @@
 [project]
-name = "mcp-nokotime"
+name = "nokotime"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
+description = "Noko time tracking MCP server"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
 dependencies = [
-    "httpx>=0.28.1",
-    "mcp>=1.1.2",
-    "python-dotenv>=1.0.1",
+    "httpx",
+    "mcp",
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=7.4.3",
-    "pytest-asyncio>=0.23.2",
-    "pytest-cov>=4.1.0",
-]
+test = ["pytest", "pytest-asyncio", "pytest-cov"]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=nokotime --cov-report=term-missing"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

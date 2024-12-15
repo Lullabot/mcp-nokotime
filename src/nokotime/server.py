@@ -80,13 +80,32 @@ class NokoServer:
             session = request_context.session
             api_token = None
 
-            # Access environment variables through the session's environment property
+            # Log the session object for debugging
+            logger.debug("Session object: %s", session)
+            logger.debug("Session dir: %s", dir(session))
+
+            # Try multiple ways to access environment
             try:
-                api_token = session.environment.get("NOKO_API_TOKEN")
-                logger.debug("Environment variables: %s", session.environment)
+                # Try accessing environment directly
+                env = getattr(session, "env", None)
+                if env:
+                    api_token = env.get("NOKO_API_TOKEN")
+                    logger.debug("Got token from session.env")
+                
+                # Try accessing through environment property
+                if not api_token and hasattr(session, "environment"):
+                    api_token = session.environment.get("NOKO_API_TOKEN")
+                    logger.debug("Got token from session.environment")
+                
+                # Try accessing through _env
+                if not api_token and hasattr(session, "_env"):
+                    api_token = session._env.get("NOKO_API_TOKEN")
+                    logger.debug("Got token from session._env")
+
+                logger.debug("API token found: %s", bool(api_token))
             except Exception as e:
-                logger.error("Error accessing environment: %s", e)
-                raise ValueError("Could not access environment variables") from e
+                logger.error("Error accessing environment: %s", e, exc_info=True)
+                raise ValueError(f"Could not access environment variables: {str(e)}") from e
 
             if not api_token:
                 logger.error("NOKO_API_TOKEN not found in environment")
