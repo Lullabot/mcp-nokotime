@@ -3,7 +3,7 @@
     {
       "name": "Noko Time Tracking",
       "description": "Track time entries using Noko API v2",
-      "command": "python -m nokotime.server",
+      "command": ".venv/bin/python -m nokotime.server",
       "capabilities": {
         "tools": true
       }

@@ -20,9 +20,22 @@ git clone https://github.com/yourusername/mcp-nokotime.git
 cd mcp-nokotime
 ```
 
-3. Install the package with development dependencies:
+3. Create and activate a virtual environment:
 ```bash
-python -m pip install -e ".[test]"
+python3.13 -m venv .venv
+source .venv/bin/activate  # On Unix/macOS
+# or
+.venv\Scripts\activate  # On Windows
+```
+
+4. Install the package with development dependencies:
+```bash
+pip install -e ".[test]"
+```
+
+5. Test the server connection:
+```bash
+./test_connection.py
 ```
 
 ## Configuration
@@ -32,16 +45,31 @@ The server requires a Noko API token for authentication. This should be provided
 ### Claude Desktop Setup
 
 1. Open Claude Desktop settings
-2. Add a new MCP server with the following configuration:
+2. If you already have a Noko configuration:
+   - Update the existing configuration to use the new server command
+   - Keep your existing API token and other settings
+   - Only change the `command` field to point to the virtual environment
+
+3. Example configuration (adjust paths as needed):
 ```json
 {
-  "name": "Noko Time Tracking",
-  "command": "python -m nokotime.server",
-  "headers": {
-    "X-NokoToken": "your_noko_api_token"
-  }
+  "servers": [
+    {
+      "name": "Noko Time Tracking",
+      "description": "Track time entries using Noko API v2",
+      "command": ".venv/bin/python -m nokotime.server",
+      "capabilities": {
+        "tools": true
+      },
+      "headers": {
+        "X-NokoToken": "your_existing_token"
+      }
+    }
+  ]
 }
 ```
+
+**Note:** Keep your existing `X-NokoToken` value; don't replace it with the example value shown above.
 
 ## Available Tools
 
@@ -132,6 +160,11 @@ pytest --cov=nokotime
    - Ensure request parameters match the tool schemas
    - Check date formats are YYYY-MM-DD
    - Verify project and user IDs exist in your Noko account
+
+4. **Virtual Environment Issues**
+   - Make sure the virtual environment is activated when installing packages
+   - Verify the path to Python in the Claude Desktop configuration matches your virtual environment
+   - On Windows, use backslashes in paths: `.venv\Scripts\python`
 
 ### Debug Mode
 
