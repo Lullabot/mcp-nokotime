@@ -53,23 +53,22 @@ The server requires a Noko API token for authentication. This should be provided
 3. Example configuration (adjust paths as needed):
 ```json
 {
-  "servers": [
-    {
-      "name": "Noko Time Tracking",
-      "description": "Track time entries using Noko API v2",
-      "command": ".venv/bin/python -m nokotime.server",
-      "capabilities": {
-        "tools": true
-      },
-      "headers": {
-        "X-NokoToken": "your_existing_token"
+  "mcpServers": {
+    "noko": {
+      "command": "python",
+      "args": [
+        "-m",
+        "nokotime.server"
+      ],
+      "env": {
+        "NOKO_API_TOKEN": "your_existing_token"
       }
     }
-  ]
+  }
 }
 ```
 
-**Note:** Keep your existing `X-NokoToken` value; don't replace it with the example value shown above.
+**Note:** Keep your existing `NOKO_API_TOKEN` value; don't replace it with the example value shown above.
 
 ## Available Tools
 
