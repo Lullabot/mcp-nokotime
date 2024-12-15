@@ -1,11 +1,11 @@
-from typing import Dict, Any, List
+import mcp.types as types
 
 # Tool schemas for Noko API v2
-TOOLS: List[Dict[str, Any]] = [
-    {
-        "name": "list-entries",
-        "description": "List time entries with optional filters",
-        "inputSchema": {
+TOOLS = [
+    types.Tool(
+        name="list-entries",
+        description="List time entries with optional filters",
+        inputSchema={
             "type": "object",
             "properties": {
                 "from": {
@@ -28,11 +28,11 @@ TOOLS: List[Dict[str, Any]] = [
                 },
             },
         },
-    },
-    {
-        "name": "create-entry",
-        "description": "Create a new time entry",
-        "inputSchema": {
+    ),
+    types.Tool(
+        name="create-entry",
+        description="Create a new time entry",
+        inputSchema={
             "type": "object",
             "properties": {
                 "date": {
@@ -54,11 +54,11 @@ TOOLS: List[Dict[str, Any]] = [
             },
             "required": ["date", "minutes", "description"],
         },
-    },
-    {
-        "name": "list-projects",
-        "description": "List all available projects",
-        "inputSchema": {
+    ),
+    types.Tool(
+        name="list-projects",
+        description="List all available projects",
+        inputSchema={
             "type": "object",
             "properties": {
                 "state": {
@@ -68,11 +68,11 @@ TOOLS: List[Dict[str, Any]] = [
                 },
             },
         },
-    },
-    {
-        "name": "list-users",
-        "description": "List all users",
-        "inputSchema": {
+    ),
+    types.Tool(
+        name="list-users",
+        description="List all users",
+        inputSchema={
             "type": "object",
             "properties": {
                 "state": {
@@ -82,5 +82,5 @@ TOOLS: List[Dict[str, Any]] = [
                 },
             },
         },
-    },
+    ),
 ] 

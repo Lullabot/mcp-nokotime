@@ -13,62 +13,67 @@ A Model Context Protocol (MCP) server for integrating Noko time tracking with Cl
 
 ## Installation
 
-1. Ensure you have Python 3.13+ installed
+1. Ensure you have Python 3.9+ installed
 2. Clone this repository:
 ```bash
 git clone https://github.com/yourusername/mcp-nokotime.git
 cd mcp-nokotime
 ```
 
-3. Create and activate a virtual environment:
+3. Install `uv` if you haven't already:
 ```bash
-python3.13 -m venv .venv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+4. Create and activate a virtual environment:
+```bash
+uv venv
 source .venv/bin/activate  # On Unix/macOS
 # or
 .venv\Scripts\activate  # On Windows
 ```
 
-4. Install the package with development dependencies:
+5. Install the package in development mode:
 ```bash
-pip install -e ".[test]"
+uv pip install -e .
 ```
 
-5. Test the server connection:
+6. Test the server:
 ```bash
-./test_connection.py
+python -m nokotime.server
 ```
-
-## Configuration
-
-The server requires a Noko API token for authentication. This should be provided by the Claude Desktop configuration.
 
 ### Claude Desktop Setup
 
-1. Open Claude Desktop settings
-2. If you already have a Noko configuration:
-   - Update the existing configuration to use the new server command
-   - Keep your existing API token and other settings
-   - Only change the `command` field to point to the virtual environment
+1. Open Claude Desktop settings at:
+   - MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
-3. Example configuration (adjust paths as needed):
+2. Add or update the Noko server configuration:
 ```json
 {
   "mcpServers": {
     "noko": {
-      "command": "python",
+      "command": "/Users/sirkitree/repos/mcp-nokotime/.venv/bin/python3",
       "args": [
         "-m",
         "nokotime.server"
       ],
       "env": {
-        "NOKO_API_TOKEN": "your_existing_token"
+        "NOKO_API_TOKEN": "your_existing_token",
+        "PYTHONPATH": "/Users/sirkitree/repos/mcp-nokotime"
       }
     }
   }
 }
 ```
 
-**Note:** Keep your existing `NOKO_API_TOKEN` value; don't replace it with the example value shown above.
+**Important Notes:**
+- The `command` should point to Python in your virtual environment (shown above is an example path)
+- Keep your existing `NOKO_API_TOKEN` value; don't replace it with the example value shown above
+- Make sure you've completed all installation steps before starting Claude Desktop
+- Restart Claude Desktop after making configuration changes
+- If you get connection errors, check Claude Desktop logs at `~/Library/Logs/Claude/mcp*.log`
 
 ## Available Tools
 
