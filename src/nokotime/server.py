@@ -3,6 +3,7 @@ import signal
 import sys
 import httpx
 import logging
+import os
 import mcp.types as types
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, List
@@ -56,6 +57,43 @@ class NokoServer:
 
     def _setup_mcp_handlers(self):
         """Set up MCP server handlers."""
+        @self.mcp_server.initialize()
+        async def handle_initialize(params: types.InitializeRequestParams) -> types.InitializeResult:
+            """Handle initialization request."""
+            logger.debug("Initialization params: %s", params)
+            
+            # Log all available environment variables for debugging
+            logger.debug("System environment variables: %s", list(os.environ.keys()))
+            
+            # Check if NOKO_API_TOKEN is in the environment
+            if "NOKO_API_TOKEN" in os.environ:
+                logger.debug("Found NOKO_API_TOKEN in system environment")
+            else:
+                logger.warning("NOKO_API_TOKEN not found in system environment")
+            
+            return types.InitializeResult(
+                protocolVersion=types.LATEST_PROTOCOL_VERSION,
+                capabilities=self.mcp_server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
+                ),
+                serverInfo=types.Implementation(
+                    name=self.name,
+                    version="0.1.0",
+                ),
+            )
+
+        @self.mcp_server.initialized()
+        async def handle_initialized() -> None:
+            """Handle initialized notification."""
+            logger.debug("Server initialized")
+            request_context = self.mcp_server.request_context
+            if request_context and request_context.session:
+                logger.debug("Session available: %s", request_context.session)
+                logger.debug("Client params: %s", request_context.session.client_params)
+            else:
+                logger.warning("No session available after initialization")
+
         @self.mcp_server.list_tools()
         async def handle_list_tools() -> List[types.Tool]:
             """Convert our tools to MCP format."""
@@ -72,23 +110,7 @@ class NokoServer:
         async def handle_call_tool(name: str, arguments: dict | None) -> List[types.TextContent]:
             """Handle tool calls through MCP."""
             # Get API token from environment
-            request_context = self.mcp_server.request_context
-            if not request_context or not request_context.session:
-                raise ValueError("No request context available")
-
-            # Get environment variables from the client parameters
-            session = request_context.session
-            api_token = None
-
-            # Log the session object for debugging
-            logger.debug("Session object: %s", session)
-            logger.debug("Client params: %s", session.client_params)
-
-            # Try to get the token from client parameters
-            if session.client_params and session.client_params.env:
-                api_token = session.client_params.env.get("NOKO_API_TOKEN")
-                logger.debug("Got token from client params")
-
+            api_token = os.environ.get("NOKO_API_TOKEN")
             if not api_token:
                 logger.error("NOKO_API_TOKEN not found in environment")
                 raise ValueError("Missing NOKO_API_TOKEN environment variable")
