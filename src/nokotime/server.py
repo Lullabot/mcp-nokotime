@@ -1,7 +1,11 @@
 import asyncio
 import httpx
+import mcp.types as types
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+from mcp.server import Server, NotificationOptions
+from mcp.server.stdio import stdio_server
+from mcp.server.models import InitializationOptions
 from .tools import TOOLS
 
 @dataclass
@@ -21,6 +25,7 @@ class Response:
 
 class NokoServer:
     def __init__(self, name: str = "noko"):
+        self.name = name
         self.base_url = "https://api.nokotime.com/v2"
         self.tool_paths = {
             "list-entries": "/entries",
@@ -34,6 +39,50 @@ class NokoServer:
             "list-projects": "GET",
             "list-users": "GET",
         }
+        # Initialize MCP server
+        self.mcp_server = Server(name)
+        self._setup_mcp_handlers()
+
+    def _setup_mcp_handlers(self):
+        """Set up MCP server handlers."""
+        @self.mcp_server.list_tools()
+        async def handle_list_tools() -> List[types.Tool]:
+            """Convert our tools to MCP format."""
+            return [
+                types.Tool(
+                    name=tool["name"],
+                    description=tool["description"],
+                    inputSchema=tool["inputSchema"]
+                )
+                for tool in TOOLS
+            ]
+
+        @self.mcp_server.call_tool()
+        async def handle_call_tool(name: str, arguments: dict | None) -> List[types.TextContent]:
+            """Handle tool calls through MCP."""
+            # Get API token from environment
+            api_token = self.mcp_server.request_context.session.get_env().get("NOKO_API_TOKEN")
+            if not api_token:
+                raise ValueError("Missing NOKO_API_TOKEN environment variable")
+
+            # Create a test-style request
+            request = Request(
+                path=f"/tools/call/{name}",
+                headers={"X-NokoToken": api_token},
+                body={"arguments": arguments} if arguments else None
+            )
+
+            # Use our existing handler
+            response = await self.handle_request(request)
+
+            # Convert response to MCP format
+            if response.status_code >= 400:
+                raise ValueError(response.body.get("error", "Unknown error"))
+
+            return [types.TextContent(
+                type="text",
+                text=str(response.body)
+            )]
 
     async def handle_request(self, request: Request) -> Response:
         """Handle incoming MCP requests and proxy them to Noko API."""
@@ -93,11 +142,26 @@ class NokoServer:
         
         return Response(status_code=404, body={"error": "Not found"})
 
+    async def run(self):
+        """Run the Noko MCP server."""
+        async with stdio_server() as (read_stream, write_stream):
+            await self.mcp_server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name=self.name,
+                    server_version="0.1.0",
+                    capabilities=self.mcp_server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
+                ),
+            )
+
 async def main():
     """Run the Noko MCP server."""
     server = NokoServer()
-    # TODO: Add MCP server integration
-    await asyncio.sleep(0)  # Placeholder
+    await server.run()
 
 if __name__ == "__main__":
     asyncio.run(main())
