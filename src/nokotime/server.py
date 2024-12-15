@@ -40,16 +40,16 @@ class NokoServer:
         self.name = name
         self.base_url = "https://api.nokotime.com/v2"
         self.tool_paths = {
-            "list-entries": "/entries",
-            "create-entry": "/entries",
-            "list-projects": "/projects",
-            "list-users": "/users",
+            "noko_list_entries": "/entries",
+            "noko_create_entry": "/entries",
+            "noko_list_projects": "/projects",
+            "noko_list_users": "/users",
         }
         self.tool_methods = {
-            "list-entries": "GET",
-            "create-entry": "POST",
-            "list-projects": "GET",
-            "list-users": "GET",
+            "noko_list_entries": "GET",
+            "noko_create_entry": "POST",
+            "noko_list_projects": "GET",
+            "noko_list_users": "GET",
         }
         # Initialize MCP server
         self.mcp_server = Server(name)
@@ -71,6 +71,22 @@ class NokoServer:
             else:
                 logger.warning("NOKO_API_TOKEN not found in system environment")
             
+            # Convert our tools to MCP format
+            mcp_tools = []
+            for tool in TOOLS:
+                try:
+                    mcp_tool = types.Tool(
+                        name=tool["name"],
+                        description=tool["description"],
+                        parameters=types.ToolParameters.model_validate(tool["inputSchema"])
+                    )
+                    mcp_tools.append(mcp_tool)
+                    logger.debug("Registered tool: %s", mcp_tool)
+                except Exception as e:
+                    logger.error("Failed to register tool %s: %s", tool["name"], e)
+            
+            logger.debug("Registered %d tools: %s", len(mcp_tools), [t.name for t in mcp_tools])
+            
             return types.InitializeResult(
                 protocolVersion=types.LATEST_PROTOCOL_VERSION,
                 capabilities=self.mcp_server.get_capabilities(
@@ -81,6 +97,7 @@ class NokoServer:
                     name=self.name,
                     version="0.1.0",
                 ),
+                tools=mcp_tools,  # Register tools during initialization
             )
 
         @self.mcp_server.initialized()
@@ -94,21 +111,11 @@ class NokoServer:
             else:
                 logger.warning("No session available after initialization")
 
-        @self.mcp_server.list_tools()
-        async def handle_list_tools() -> List[types.Tool]:
-            """Convert our tools to MCP format."""
-            return [
-                types.Tool(
-                    name=tool["name"],
-                    description=tool["description"],
-                    inputSchema=tool["inputSchema"]
-                )
-                for tool in TOOLS
-            ]
-
         @self.mcp_server.call_tool()
         async def handle_call_tool(name: str, arguments: dict | None) -> List[types.TextContent]:
             """Handle tool calls through MCP."""
+            logger.debug("Tool call received - name: %s, arguments: %s", name, arguments)
+            
             # Get API token from environment
             api_token = os.environ.get("NOKO_API_TOKEN")
             if not api_token:

@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 # Tool schemas for Noko API v2
 TOOLS: List[Dict[str, Any]] = [
     {
-        "name": "list-entries",
+        "name": "noko_list_entries",
         "description": "List time entries with optional filters",
         "inputSchema": {
             "type": "object",
@@ -30,7 +30,7 @@ TOOLS: List[Dict[str, Any]] = [
         },
     },
     {
-        "name": "create-entry",
+        "name": "noko_create_entry",
         "description": "Create a new time entry",
         "inputSchema": {
             "type": "object",
@@ -56,7 +56,7 @@ TOOLS: List[Dict[str, Any]] = [
         },
     },
     {
-        "name": "list-projects",
+        "name": "noko_list_projects",
         "description": "List all available projects",
         "inputSchema": {
             "type": "object",
@@ -70,7 +70,7 @@ TOOLS: List[Dict[str, Any]] = [
         },
     },
     {
-        "name": "list-users",
+        "name": "noko_list_users",
         "description": "List all users",
         "inputSchema": {
             "type": "object",
