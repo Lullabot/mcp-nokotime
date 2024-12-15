@@ -63,7 +63,13 @@ class NokoServer:
         async def handle_call_tool(name: str, arguments: dict | None) -> List[types.TextContent]:
             """Handle tool calls through MCP."""
             # Get API token from environment
-            api_token = self.mcp_server.request_context.session.env.get("NOKO_API_TOKEN")
+            request_context = self.mcp_server.request_context
+            if not request_context or not request_context.session:
+                raise ValueError("No request context available")
+
+            # Get environment variables from the session
+            env_vars = request_context.session.__dict__.get('_env', {})
+            api_token = env_vars.get("NOKO_API_TOKEN")
             if not api_token:
                 raise ValueError("Missing NOKO_API_TOKEN environment variable")
 
