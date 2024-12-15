@@ -2,6 +2,7 @@ import asyncio
 import signal
 import sys
 import httpx
+import logging
 import mcp.types as types
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, List
@@ -9,6 +10,14 @@ from mcp.server import Server, NotificationOptions
 from mcp.server.stdio import stdio_server
 from mcp.server.models import InitializationOptions
 from .tools import TOOLS
+
+# Set up logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+logger = logging.getLogger("noko-server")
 
 @dataclass
 class Request:
@@ -68,9 +77,19 @@ class NokoServer:
                 raise ValueError("No request context available")
 
             # Get environment variables from the session
-            env_vars = request_context.session.__dict__.get('_env', {})
-            api_token = env_vars.get("NOKO_API_TOKEN")
+            session = request_context.session
+            api_token = None
+
+            # Access environment variables through the session's environment property
+            try:
+                api_token = session.environment.get("NOKO_API_TOKEN")
+                logger.debug("Environment variables: %s", session.environment)
+            except Exception as e:
+                logger.error("Error accessing environment: %s", e)
+                raise ValueError("Could not access environment variables") from e
+
             if not api_token:
+                logger.error("NOKO_API_TOKEN not found in environment")
                 raise ValueError("Missing NOKO_API_TOKEN environment variable")
 
             # Create a test-style request

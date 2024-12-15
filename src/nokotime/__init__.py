@@ -1,3 +1,5 @@
-from .server import NokoServer
+"""Noko MCP server package."""
 
-__all__ = ["NokoServer"]
+from .server import NokoServer, run_server
+
+__all__ = ['NokoServer', 'run_server']
