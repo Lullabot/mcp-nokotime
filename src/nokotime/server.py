@@ -95,47 +95,102 @@ class NokoServer:
             )]
 
         try:
-            # Create a test-style request with proper headers
-            request = Request(
-                path=f"/tools/call/{name}",
-                method=self.tool_methods.get(name, "GET"),
-                headers={
-                    "Authorization": f"Bearer {api_token}",
+            # Get the Noko API path and method
+            if name not in self.tool_paths:
+                return [types.TextContent(
+                    type="text",
+                    text=f"Error: Tool {name} not found"
+                )]
+                
+            noko_path = self.tool_paths[name]
+            method = self.tool_methods[name]
+            
+            # Convert tool arguments to API parameters
+            params = None
+            json_data = None
+            if method == "GET":
+                params = {}
+                # Only add non-empty parameters
+                if arguments:
+                    for key, value in arguments.items():
+                        # Skip 'all' state values as they mean no filter
+                        if key == 'state' and value == 'all':
+                            continue
+                        if value is not None:
+                            # Handle array parameters
+                            if isinstance(value, list):
+                                # Noko expects array parameters in the format key[]=value
+                                for item in value:
+                                    array_key = f"{key}[]"
+                                    if array_key not in params:
+                                        params[array_key] = []
+                                    params[array_key].append(str(item))
+                            else:
+                                params[key] = value
+            else:
+                json_data = arguments if arguments else {}
+            
+            # Make direct API call to Noko
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "X-NokoToken": api_token,  # Noko expects token in X-NokoToken header
                     "Accept": "application/json",
                     "Content-Type": "application/json",
                     "User-Agent": "NokoMCP/0.1.0"
-                },
-                body={"arguments": arguments} if arguments else None
-            )
+                }
+                
+                # Log request details for debugging
+                logger.debug(f"Making Noko API request: {method} {self.base_url}{noko_path}")
+                logger.debug(f"Headers: {headers}")
+                logger.debug(f"Params: {params}")
+                logger.debug(f"JSON data: {json_data}")
+                
+                noko_response = await client.request(
+                    method=method,
+                    url=f"{self.base_url}{noko_path}",
+                    headers=headers,
+                    params=params,
+                    json=json_data,
+                )
+                
+                logger.debug(f"Noko API Response: {noko_response.status_code} - {noko_response.text}")
+                
+                # Handle errors
+                if noko_response.status_code >= 400:
+                    error_msg = f"API Error {noko_response.status_code}"
+                    if noko_response.text:
+                        try:
+                            error_data = noko_response.json()
+                            error_msg = f"{error_msg}: {error_data.get('error', 'Unknown error')}"
+                        except:
+                            error_msg = f"{error_msg}: {noko_response.text}"
+                            
+                    logger.error(error_msg)
+                    return [types.TextContent(
+                        type="text",
+                        text=error_msg
+                    )]
 
-            # Use our existing handler
-            response = await self.handle_request(request)
+                # Format the response nicely for Claude
+                if noko_response.text:
+                    try:
+                        response_data = noko_response.json()
+                        if isinstance(response_data, dict):
+                            text = "\n".join(
+                                f"{key}: {value}" 
+                                for key, value in response_data.items()
+                            )
+                        else:
+                            text = str(response_data)
+                    except:
+                        text = noko_response.text
+                else:
+                    text = "Success (no content)"
 
-            # Log the full response for debugging
-            logger.debug("Full response: %s", response)
-
-            # Handle errors
-            if response.status_code >= 400:
-                error_msg = f"API Error {response.status_code}: {response.body.get('error', 'Unknown error')}"
-                logger.error(error_msg)
                 return [types.TextContent(
                     type="text",
-                    text=error_msg
+                    text=text
                 )]
-
-            # Format the response nicely for Claude
-            if isinstance(response.body, dict):
-                text = "\n".join(
-                    f"{key}: {value}" 
-                    for key, value in response.body.items()
-                )
-            else:
-                text = str(response.body)
-
-            return [types.TextContent(
-                type="text",
-                text=text
-            )]
             
         except Exception as e:
             logger.error("Error handling tool call", exc_info=True)
@@ -145,57 +200,10 @@ class NokoServer:
             )]
 
     async def handle_request(self, request: Request) -> Response:
-        """Handle incoming MCP requests and proxy them to Noko API."""
+        """Handle incoming MCP requests."""
         if request.path == "/tools/list":
             return Response(status_code=200, body={"tools": TOOLS})
             
-        if request.path.startswith("/tools/call/"):
-            tool_name = request.path.split("/")[-1]
-            if tool_name not in self.tool_paths:
-                return Response(
-                    status_code=404,
-                    body={"error": f"Tool {tool_name} not found"}
-                )
-                
-            # Map tool call to Noko API request
-            noko_path = self.tool_paths[tool_name]
-            method = self.tool_methods[tool_name]
-            
-            # Convert tool arguments to API parameters
-            params = None
-            json_data = None
-            if method == "GET":
-                params = request.body.get("arguments", {}) if request.body else {}
-            else:
-                json_data = request.body.get("arguments", {}) if request.body else {}
-            
-            try:
-                async with httpx.AsyncClient() as client:
-                    # Forward the request to Noko API with headers from the request
-                    noko_response = await client.request(
-                        method=method,
-                        url=f"{self.base_url}{noko_path}",
-                        headers=request.headers,
-                        params=params,
-                        json=json_data,
-                    )
-                    
-                    logger.debug(f"Noko API Response: {noko_response.status_code} - {noko_response.text}")
-                    
-                    # Return the response from Noko
-                    return Response(
-                        status_code=noko_response.status_code,
-                        body=noko_response.json() if noko_response.text else {},
-                        headers=dict(noko_response.headers)
-                    )
-                    
-            except Exception as e:
-                logger.error(f"Error making Noko API request: {str(e)}", exc_info=True)
-                return Response(
-                    status_code=500,
-                    body={"error": str(e)}
-                )
-        
         return Response(status_code=404, body={"error": "Not found"})
 
     async def run(self):
