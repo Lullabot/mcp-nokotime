@@ -1,4 +1,6 @@
 import asyncio
+import signal
+import sys
 import httpx
 import mcp.types as types
 from dataclasses import dataclass
@@ -61,7 +63,7 @@ class NokoServer:
         async def handle_call_tool(name: str, arguments: dict | None) -> List[types.TextContent]:
             """Handle tool calls through MCP."""
             # Get API token from environment
-            api_token = self.mcp_server.request_context.session.get_env().get("NOKO_API_TOKEN")
+            api_token = self.mcp_server.request_context.session.env.get("NOKO_API_TOKEN")
             if not api_token:
                 raise ValueError("Missing NOKO_API_TOKEN environment variable")
 
@@ -79,9 +81,18 @@ class NokoServer:
             if response.status_code >= 400:
                 raise ValueError(response.body.get("error", "Unknown error"))
 
+            # Format the response nicely for Claude
+            if isinstance(response.body, dict):
+                text = "\n".join(
+                    f"{key}: {value}" 
+                    for key, value in response.body.items()
+                )
+            else:
+                text = str(response.body)
+
             return [types.TextContent(
                 type="text",
-                text=str(response.body)
+                text=text
             )]
 
     async def handle_request(self, request: Request) -> Response:
@@ -158,10 +169,20 @@ class NokoServer:
                 ),
             )
 
-async def main():
-    """Run the Noko MCP server."""
+def handle_signals():
+    """Set up signal handlers for graceful shutdown."""
+    def handle_interrupt(signum, frame):
+        print("\nShutting down gracefully...", file=sys.stderr)
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_interrupt)
+    signal.signal(signal.SIGTERM, handle_interrupt)
+
+def run_server():
+    """Run the server with proper signal handling."""
+    handle_signals()
     server = NokoServer()
-    await server.run()
+    asyncio.run(server.run())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    run_server()
