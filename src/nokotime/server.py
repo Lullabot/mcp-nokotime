@@ -53,88 +53,75 @@ class NokoServer:
         }
         # Initialize MCP server
         self.mcp_server = Server(name)
-        self._setup_mcp_handlers()
+        self._register_tools()
 
-    def _setup_mcp_handlers(self):
-        """Set up MCP server handlers."""
-        @self.mcp_server.initialize()
-        async def handle_initialize(params: types.InitializeRequestParams) -> types.InitializeResult:
-            """Handle initialization request."""
-            logger.debug("Initialization params: %s", params)
-            
-            # Log all available environment variables for debugging
-            logger.debug("System environment variables: %s", list(os.environ.keys()))
-            
-            # Check if NOKO_API_TOKEN is in the environment
-            if "NOKO_API_TOKEN" in os.environ:
-                logger.debug("Found NOKO_API_TOKEN in system environment")
-            else:
-                logger.warning("NOKO_API_TOKEN not found in system environment")
-            
-            # Convert our tools to MCP format
+    def _register_tools(self):
+        """Register tools with the MCP server."""
+        # First register the list_tools handler
+        @self.mcp_server.list_tools()
+        async def handle_list_tools() -> List[types.Tool]:
+            """Convert our tools to MCP format."""
             mcp_tools = []
             for tool in TOOLS:
                 try:
                     mcp_tool = types.Tool(
                         name=tool["name"],
                         description=tool["description"],
-                        parameters=types.ToolParameters.model_validate(tool["inputSchema"])
+                        inputSchema=tool["inputSchema"]
                     )
                     mcp_tools.append(mcp_tool)
-                    logger.debug("Registered tool: %s", mcp_tool)
+                    logger.debug("Created tool: %s", mcp_tool)
                 except Exception as e:
-                    logger.error("Failed to register tool %s: %s", tool["name"], e)
-            
-            logger.debug("Registered %d tools: %s", len(mcp_tools), [t.name for t in mcp_tools])
-            
-            return types.InitializeResult(
-                protocolVersion=types.LATEST_PROTOCOL_VERSION,
-                capabilities=self.mcp_server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-                serverInfo=types.Implementation(
-                    name=self.name,
-                    version="0.1.0",
-                ),
-                tools=mcp_tools,  # Register tools during initialization
-            )
+                    logger.error("Failed to create tool %s: %s", tool["name"], e, exc_info=True)
+            return mcp_tools
 
-        @self.mcp_server.initialized()
-        async def handle_initialized() -> None:
-            """Handle initialized notification."""
-            logger.debug("Server initialized")
-            request_context = self.mcp_server.request_context
-            if request_context and request_context.session:
-                logger.debug("Session available: %s", request_context.session)
-                logger.debug("Client params: %s", request_context.session.client_params)
-            else:
-                logger.warning("No session available after initialization")
-
+        # Then register the call_tool handler
         @self.mcp_server.call_tool()
         async def handle_call_tool(name: str, arguments: dict | None) -> List[types.TextContent]:
             """Handle tool calls through MCP."""
-            logger.debug("Tool call received - name: %s, arguments: %s", name, arguments)
-            
-            # Get API token from environment
-            api_token = os.environ.get("NOKO_API_TOKEN")
-            if not api_token:
-                logger.error("NOKO_API_TOKEN not found in environment")
-                raise ValueError("Missing NOKO_API_TOKEN environment variable")
+            return await self._handle_tool_call(name, arguments)
 
-            # Create a test-style request
+    async def _handle_tool_call(self, name: str, arguments: dict | None) -> List[types.TextContent]:
+        """Handle tool calls through MCP."""
+        logger.debug("Tool call received - name: %s, arguments: %s", name, arguments)
+        
+        # Get API token from environment
+        api_token = os.environ.get("NOKO_API_TOKEN")
+        if not api_token:
+            logger.error("NOKO_API_TOKEN not found in environment")
+            return [types.TextContent(
+                type="text",
+                text="Error: NOKO_API_TOKEN environment variable not set"
+            )]
+
+        try:
+            # Create a test-style request with proper headers
             request = Request(
                 path=f"/tools/call/{name}",
-                headers={"X-NokoToken": api_token},
+                method=self.tool_methods.get(name, "GET"),
+                headers={
+                    "Authorization": f"Bearer {api_token}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "User-Agent": "NokoMCP/0.1.0"
+                },
                 body={"arguments": arguments} if arguments else None
             )
 
             # Use our existing handler
             response = await self.handle_request(request)
 
-            # Convert response to MCP format
+            # Log the full response for debugging
+            logger.debug("Full response: %s", response)
+
+            # Handle errors
             if response.status_code >= 400:
-                raise ValueError(response.body.get("error", "Unknown error"))
+                error_msg = f"API Error {response.status_code}: {response.body.get('error', 'Unknown error')}"
+                logger.error(error_msg)
+                return [types.TextContent(
+                    type="text",
+                    text=error_msg
+                )]
 
             # Format the response nicely for Claude
             if isinstance(response.body, dict):
@@ -148,6 +135,13 @@ class NokoServer:
             return [types.TextContent(
                 type="text",
                 text=text
+            )]
+            
+        except Exception as e:
+            logger.error("Error handling tool call", exc_info=True)
+            return [types.TextContent(
+                type="text",
+                text=f"Error: {str(e)}"
             )]
 
     async def handle_request(self, request: Request) -> Response:
@@ -163,13 +157,6 @@ class NokoServer:
                     body={"error": f"Tool {tool_name} not found"}
                 )
                 
-            # Check auth before making API call
-            if not request.headers or "X-NokoToken" not in request.headers:
-                return Response(
-                    status_code=401,
-                    body={"error": "Missing X-NokoToken header"}
-                )
-            
             # Map tool call to Noko API request
             noko_path = self.tool_paths[tool_name]
             method = self.tool_methods[tool_name]
@@ -184,23 +171,26 @@ class NokoServer:
             
             try:
                 async with httpx.AsyncClient() as client:
-                    # Forward the request to Noko API
+                    # Forward the request to Noko API with headers from the request
                     noko_response = await client.request(
                         method=method,
                         url=f"{self.base_url}{noko_path}",
-                        headers={"X-NokoToken": request.headers["X-NokoToken"]},
+                        headers=request.headers,
                         params=params,
                         json=json_data,
                     )
                     
+                    logger.debug(f"Noko API Response: {noko_response.status_code} - {noko_response.text}")
+                    
                     # Return the response from Noko
                     return Response(
                         status_code=noko_response.status_code,
-                        body=noko_response.json(),
+                        body=noko_response.json() if noko_response.text else {},
                         headers=dict(noko_response.headers)
                     )
                     
             except Exception as e:
+                logger.error(f"Error making Noko API request: {str(e)}", exc_info=True)
                 return Response(
                     status_code=500,
                     body={"error": str(e)}
@@ -211,16 +201,20 @@ class NokoServer:
     async def run(self):
         """Run the Noko MCP server."""
         async with stdio_server() as (read_stream, write_stream):
+            # Create server capabilities
+            capabilities = types.ServerCapabilities(
+                tools=types.ToolsCapability(enabled=True),  # Enable tool support
+                notifications=types.NotificationParams(),
+                experimental={}
+            )
+            
             await self.mcp_server.run(
                 read_stream,
                 write_stream,
                 InitializationOptions(
                     server_name=self.name,
                     server_version="0.1.0",
-                    capabilities=self.mcp_server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
+                    capabilities=capabilities,
                 ),
             )
 

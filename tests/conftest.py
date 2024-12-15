@@ -66,3 +66,11 @@ def mock_httpx_response(monkeypatch):
     import httpx
     monkeypatch.setattr(httpx.AsyncClient, "request", mock)
     return mock
+
+# Configure pytest to use asyncio
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()

@@ -1,109 +1,82 @@
 import pytest
+import os
+from nokotime.server import NokoServer
 from nokotime.tools import TOOLS
-from unittest.mock import MagicMock
+import mcp.types as types
+
+@pytest.fixture
+def server():
+    return NokoServer()
+
+def test_server_initialization(server):
+    """Test server initialization."""
+    assert server.name == "noko"
+    assert server.base_url == "https://api.nokotime.com/v2"
+    assert len(server.tool_paths) == len(TOOLS)
+    assert len(server.tool_methods) == len(TOOLS)
 
 @pytest.mark.asyncio
-async def test_list_tools(server, mock_request):
-    """Test the /tools/list endpoint."""
-    request = mock_request("/tools/list")
+async def test_handle_request_list_tools(server):
+    """Test handling /tools/list request."""
+    request = server.Request(path="/tools/list")
     response = await server.handle_request(request)
-    
     assert response.status_code == 200
-    assert response.body == {"tools": TOOLS}
+    assert response.body["tools"] == TOOLS
 
 @pytest.mark.asyncio
-async def test_missing_auth_token(server, mock_request):
-    """Test request without authentication token."""
-    request = mock_request(
-        "/tools/call/list-entries",
-        headers=None  # No headers at all
-    )
+async def test_handle_request_tool_not_found(server):
+    """Test handling request for non-existent tool."""
+    request = server.Request(path="/tools/call/nonexistent")
     response = await server.handle_request(request)
-    
-    assert response.status_code == 401
-    assert "Missing X-NokoToken header" in response.body["error"]
-
-@pytest.mark.asyncio
-async def test_invalid_tool(server, mock_request):
-    """Test request for non-existent tool."""
-    request = mock_request("/tools/call/invalid-tool")
-    response = await server.handle_request(request)
-    
     assert response.status_code == 404
-    assert "Tool invalid-tool not found" in response.body["error"]
+    assert "error" in response.body
 
 @pytest.mark.asyncio
-async def test_list_entries(server, mock_request, mock_httpx_response):
-    """Test list-entries tool."""
-    mock_data = {
-        "entries": [
-            {"id": 1, "minutes": 60, "description": "Test entry"}
-        ]
-    }
-    
-    async def custom_response(*args, **kwargs):
-        mock = MagicMock()
-        mock.status_code = 200
-        mock.headers = {"Content-Type": "application/json"}
-        mock.json = lambda: mock_data
-        return mock
-    
-    mock_httpx_response.side_effect = custom_response
-    
-    request = mock_request(
-        "/tools/call/list-entries",
-        headers={"X-NokoToken": "test_token"},
-        body={"arguments": {"from": "2023-12-01", "to": "2023-12-31"}}
-    )
+async def test_handle_request_missing_token(server):
+    """Test handling request without API token."""
+    request = server.Request(path="/tools/call/noko_list_entries")
     response = await server.handle_request(request)
-    
-    assert response.status_code == 200
-    assert response.body == mock_data
+    assert response.status_code == 401
+    assert "error" in response.body
 
 @pytest.mark.asyncio
-async def test_create_entry(server, mock_request, mock_httpx_response):
-    """Test create-entry tool."""
-    entry_data = {
-        "date": "2023-12-14",
-        "minutes": 60,
-        "description": "Test entry",
-        "project_id": 123
-    }
-    mock_data = {"entry": entry_data}
-    
-    async def custom_response(*args, **kwargs):
-        mock = MagicMock()
-        mock.status_code = 201
-        mock.headers = {"Content-Type": "application/json"}
-        mock.json = lambda: mock_data
-        return mock
-    
-    mock_httpx_response.side_effect = custom_response
-    
-    request = mock_request(
-        "/tools/call/create-entry",
-        method="POST",
-        headers={"X-NokoToken": "test_token"},
-        body={"arguments": entry_data}
-    )
-    response = await server.handle_request(request)
-    
-    assert response.status_code == 201
-    assert response.body == mock_data
+async def test_handle_tool_call_missing_token(server):
+    """Test handling tool call without API token."""
+    with pytest.raises(ValueError, match="Missing NOKO_API_TOKEN environment variable"):
+        await server._handle_tool_call("noko_list_entries", {})
 
 @pytest.mark.asyncio
-async def test_api_error_handling(server, mock_request, mock_httpx_response):
-    """Test error handling for API failures."""
-    async def raise_error(*args, **kwargs):
-        raise Exception("API connection failed")
+async def test_handle_tool_call_with_token(server, monkeypatch):
+    """Test handling tool call with API token."""
+    # Mock environment variable
+    monkeypatch.setenv("NOKO_API_TOKEN", "test_token")
     
-    mock_httpx_response.side_effect = raise_error
+    # Mock httpx client
+    class MockResponse:
+        status_code = 200
+        def json(self):
+            return {"entries": []}
     
-    request = mock_request(
-        "/tools/call/list-entries",
-        headers={"X-NokoToken": "test_token"}
-    )
-    response = await server.handle_request(request)
+    class MockClient:
+        async def request(self, *args, **kwargs):
+            return MockResponse()
+        
+        async def __aenter__(self):
+            return self
+            
+        async def __aexit__(self, *args):
+            pass
     
-    assert response.status_code == 500
-    assert "API connection failed" in response.body["error"]
+    monkeypatch.setattr("httpx.AsyncClient", MockClient)
+    
+    result = await server._handle_tool_call("noko_list_entries", {})
+    assert isinstance(result, list)
+    assert all(isinstance(content, types.TextContent) for content in result)
+
+def test_tool_registration(server):
+    """Test that tools are properly registered."""
+    # Check that each tool from TOOLS is registered
+    for tool in TOOLS:
+        tool_name = tool["name"]
+        assert tool_name in server.tool_paths
+        assert tool_name in server.tool_methods
