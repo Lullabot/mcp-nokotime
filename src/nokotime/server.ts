@@ -11,12 +11,21 @@ import { registerResources } from './resources/index.js';
 // Load environment variables
 dotenv.config();
 
-// Set up error logging to a file for debugging
-const errorLogDir = path.resolve(process.cwd(), 'logs');
+// Set up error logging to a file for debugging - fix the path
+const modulePath = '/Users/sirkitree/repos/MCP/mcp-nokotime'; // Hard-code path to ensure consistency
+console.error(`Module path: ${modulePath}`);
+const errorLogDir = path.join(modulePath, 'logs');
+console.error(`Creating log directory: ${errorLogDir}`);
 if (!fs.existsSync(errorLogDir)) {
-  fs.mkdirSync(errorLogDir, { recursive: true });
+  try {
+    fs.mkdirSync(errorLogDir, { recursive: true });
+    console.error(`Log directory created: ${errorLogDir}`);
+  } catch (e: any) {
+    console.error(`Failed to create log directory: ${e.message}`);
+  }
 }
 const errorLogFile = path.join(errorLogDir, 'error.log');
+console.error(`Log file path: ${errorLogFile}`);
 
 // Function to write error details to file
 function logErrorToFile(message: string, error?: any) {
