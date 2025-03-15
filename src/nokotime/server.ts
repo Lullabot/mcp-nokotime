@@ -3,6 +3,7 @@ import axios from 'axios';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TOOL_PATHS, TOOL_METHODS, registerAllTools } from './tools/index.js';
+import { registerResources } from './resources/index.js';
 
 // Load environment variables
 dotenv.config();
@@ -50,7 +51,21 @@ export class NokoServer {
     // Initialize MCP server
     this.server = new McpServer({
       name,
-      version: "0.1.0"
+      version: "0.1.0",
+      description: "Model Context Protocol server for Noko time tracking API"
+    });
+    
+    // Get API token from environment
+    const apiToken = process.env.NOKO_API_TOKEN;
+    if (!apiToken) {
+      console.error("NOKO_API_TOKEN environment variable not set");
+      process.exit(1);
+    }
+    
+    // Register resources
+    registerResources(this.server, apiToken, {
+      debug: (...args: any[]) => console.debug(...args),
+      error: (...args: any[]) => console.error(...args)
     });
     
     // Register tools from separate modules
