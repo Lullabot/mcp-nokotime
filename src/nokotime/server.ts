@@ -5,6 +5,7 @@ import * as path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TOOL_PATHS, TOOL_METHODS, registerAllTools } from './tools/index.js';
+// Re-enable resources with improved error handling
 import { registerResources } from './resources/index.js';
 
 // Load environment variables
@@ -41,49 +42,12 @@ function logErrorToFile(message: string, error?: any) {
 process.on('uncaughtException', (err) => {
   logErrorToFile('Uncaught exception:', err);
   console.error('Uncaught exception:', err);
-  // Don't exit - let's try to keep the process alive
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   logErrorToFile('Unhandled rejection at:', reason);
   console.error('Unhandled rejection at:', promise, 'reason:', reason);
-  // Don't exit - let's try to keep the process alive
 });
-
-// Setup log file
-const logDir = path.resolve(process.cwd(), 'logs');
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
-}
-const logFile = path.join(logDir, 'nokotime.log');
-const logStream = fs.createWriteStream(logFile, { flags: 'a' });
-
-// Set up logging
-const logger = {
-  debug: (...args: any[]) => {
-    try {
-      const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-      ).join(' ');
-      logStream.write(`[DEBUG] ${new Date().toISOString()}: ${message}\n`);
-    } catch (e) {
-      logErrorToFile('Error in debug logger:', e);
-    }
-  },
-  error: (...args: any[]) => {
-    try {
-      const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-      ).join(' ');
-      logStream.write(`[ERROR] ${new Date().toISOString()}: ${message}\n`);
-      logErrorToFile(message);
-      console.error(...args); // Still send errors to stderr
-    } catch (e) {
-      logErrorToFile('Error in error logger:', e);
-      console.error('Error in error logger:', e);
-    }
-  },
-};
 
 // Define text content type for responses
 const TEXT = "text" as const;
@@ -112,6 +76,36 @@ const createSuccessResponse = (data: any) => {
   };
 };
 
+// Create logger for console.error
+const consoleLogger = {
+  debug: (message: string, ...args: any[]) => {
+    console.error(`[DEBUG] ${message}`, ...args.map(arg => {
+      // Handle objects by stringifying them with null replacer to avoid circular references
+      if (arg && typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg, null, 2);
+        } catch (e) {
+          return '[Complex Object]';
+        }
+      }
+      return arg;
+    }).filter(Boolean));
+  },
+  error: (message: string, ...args: any[]) => {
+    console.error(`[ERROR] ${message}`, ...args.map(arg => {
+      // Handle objects by stringifying them
+      if (arg && typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg, null, 2);
+        } catch (e) {
+          return '[Complex Object]';
+        }
+      }
+      return arg;
+    }).filter(Boolean));
+  }
+};
+
 export class NokoServer {
   private server: McpServer;
   private baseUrl: string;
@@ -130,40 +124,42 @@ export class NokoServer {
       // Get API token from environment
       const apiToken = process.env.NOKO_API_TOKEN;
       if (!apiToken) {
-        logger.error("NOKO_API_TOKEN environment variable not set");
+        console.error("NOKO_API_TOKEN environment variable not set");
         process.exit(1);
       }
       
-      // Register just tools first for testing
+      // First register tools
+      console.error("Registering tools...");
       registerAllTools(this.server, this._handleToolCall.bind(this));
+      console.error("Tools registered successfully");
       
-      logger.debug("Tools registered successfully");
-      
-      // Try to register resources in a try/catch block
+      // Then carefully try to register resources
       try {
-        logger.debug("About to register resources...");
-        registerResources(this.server, apiToken, logger);
-        logger.debug("Resources registered successfully.");
-      } catch (resError) {
-        logger.error("Error registering resources:", resError);
-        logErrorToFile("Error registering resources:", resError);
-        // Continue without resources for now
+        console.error("Registering resources...");
+        registerResources(this.server, apiToken, consoleLogger);
+        console.error("Resources registered successfully");
+      } catch (error) {
+        console.error("Failed to register resources, continuing with tools only:", error);
+        logErrorToFile("Failed to register resources:", error);
+        // Continue with server startup even if resources fail
       }
+      
+      console.error("Server initialization complete");
     } catch (error) {
-      logger.error("Error initializing server:", error);
+      console.error("Error initializing server:", error);
       logErrorToFile("Error initializing server:", error);
-      throw error; // Re-throw to inform caller
+      throw error;
     }
   }
 
   private async _handleToolCall(name: string, args: Record<string, any>) {
     try {
-      logger.debug(`Tool call received - name: ${name}, arguments:`, args);
+      console.error(`Tool call received - name: ${name}`);
       
       // Get API token from environment
       const apiToken = process.env.NOKO_API_TOKEN;
       if (!apiToken) {
-        logger.error("NOKO_API_TOKEN not found in environment");
+        console.error("NOKO_API_TOKEN not found in environment");
         return createErrorResponse("Error: NOKO_API_TOKEN environment variable not set");
       }
 
@@ -212,17 +208,13 @@ export class NokoServer {
       
       // Make direct API call to Noko
       const headers = {
-        "X-NokoToken": apiToken, // Noko expects token in X-NokoToken header
+        "X-NokoToken": apiToken,
         "Accept": "application/json",
         "Content-Type": "application/json",
         "User-Agent": "NokoMCP/0.1.0"
       };
       
-      // Log request details for debugging
-      logger.debug(`Making Noko API request: ${method} ${this.baseUrl}${nokoPath}`);
-      logger.debug(`Headers: ${JSON.stringify(headers)}`);
-      logger.debug(`Params: ${JSON.stringify(params)}`);
-      logger.debug(`JSON data: ${JSON.stringify(jsonData)}`);
+      console.error(`Making Noko API request: ${method} ${this.baseUrl}${nokoPath}`);
       
       const nokoResponse = await axios({
         method: method.toLowerCase(),
@@ -232,17 +224,15 @@ export class NokoServer {
         data: jsonData,
       });
       
-      logger.debug(`Noko API Response: ${nokoResponse.status} - ${JSON.stringify(nokoResponse.data)}`);
+      console.error(`Noko API Response: ${nokoResponse.status}`);
       
       return createSuccessResponse(nokoResponse.data);
     } catch (error: any) {
-      logger.error("Error handling tool call", error);
+      console.error("Error handling tool call", error.message);
       logErrorToFile("Error handling tool call:", error);
       
       // Handle Axios errors specifically
       if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
         const errorMsg = `API Error ${error.response.status}`;
         let detailedMsg = errorMsg;
         
@@ -258,7 +248,7 @@ export class NokoServer {
           }
         }
         
-        logger.error(detailedMsg);
+        console.error(detailedMsg);
         return createErrorResponse(detailedMsg);
       }
       
@@ -268,15 +258,15 @@ export class NokoServer {
 
   async run(): Promise<void> {
     try {
-      logger.debug("Starting server with StdioServerTransport");
+      console.error("Starting server with StdioServerTransport");
       const transport = new StdioServerTransport();
       
-      logger.debug("Connecting transport to server");
+      console.error("Connecting transport to server");
       await this.server.connect(transport);
       
-      logger.debug("Server running successfully");
+      console.error("Server running successfully");
     } catch (error) {
-      logger.error("Error running server:", error);
+      console.error("Error running server:", error);
       logErrorToFile("Error running server:", error);
       throw error;
     }
@@ -286,7 +276,6 @@ export class NokoServer {
 // Signal handling for graceful shutdown
 function handleSignals(): void {
   function handleInterrupt() {
-    logErrorToFile("Shutting down gracefully...");
     console.error("\nShutting down gracefully...");
     process.exit(0);
   }
@@ -297,16 +286,14 @@ function handleSignals(): void {
 
 export function runServer(): void {
   try {
-    logErrorToFile("Starting server...");
+    console.error("Starting server...");
     handleSignals();
     const server = new NokoServer();
     server.run().catch(err => {
-      logErrorToFile("Error running server:", err);
       console.error('Error running server:', err);
       process.exit(1);
     });
   } catch (error) {
-    logErrorToFile("Failed to start server:", error);
     console.error('Failed to start server:', error);
     process.exit(1);
   }

@@ -36,47 +36,78 @@ type ListResourcesCallback = (extra: RequestHandlerExtra) => ListResourcesResult
  * Register all resources with the MCP server
  */
 export function registerResources(server: McpServer, apiToken: string, logger?: Logger) {
-  const baseUrl = "https://api.nokotime.com/v2";
-  
-  // Use console as fallback if no logger provided - should never happen
+  // Use console as default logger if not provided
   const log = logger || {
-    debug: (msg: string) => {},
-    error: (msg: string) => {}
+    debug: (msg: string, ...args: any[]) => console.error(`[DEBUG] ${msg}`, ...args),
+    error: (msg: string, ...args: any[]) => console.error(`[ERROR] ${msg}`, ...args)
   };
   
-  // Create API client for Noko
-  const makeRequest = async (path: string) => {
-    try {
-      const response = await axios({
-        method: 'GET',
-        url: `${baseUrl}${path}`,
-        headers: {
-          'X-NokoToken': apiToken,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'NokoMCP/0.1.0'
+  try {
+    const baseUrl = "https://api.nokotime.com/v2";
+    
+    log.debug("Starting resources registration");
+  
+    // Create API client for Noko
+    const makeRequest = async (path: string) => {
+      try {
+        log.debug(`Making API request to: ${baseUrl}${path}`);
+        
+        const response = await axios({
+          method: 'GET',
+          url: `${baseUrl}${path}`,
+          headers: {
+            'X-NokoToken': apiToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'NokoMCP/0.1.0'
+          }
+        });
+        
+        log.debug(`API request succeeded: ${path}`);
+        return response.data;
+      } catch (error: any) {
+        log.error(`Error making API request: ${path}`, error.message || 'Unknown error');
+        
+        // More detailed error info for debugging
+        if (error.response) {
+          log.error(`API error status: ${error.response.status}`);
+          log.error(`API error data: ${JSON.stringify(error.response.data || {})}`);
         }
-      });
-      
-      return response.data;
+        
+        throw new Error(error.response?.data?.error || error.message || 'Unknown API error');
+      }
+    };
+    
+    // Register each resource type with proper error handling
+    try {
+      registerUserResources(server, makeRequest, log);
+      log.debug("User resources registered successfully");
     } catch (error: any) {
-      log.error('Error making API request: ' + (error.message || 'Unknown error'));
-      throw new Error(error.response?.data?.error || error.message || 'Unknown API error');
+      log.error("Failed to register user resources:", error.message);
+      // Continue with other registrations
     }
-  };
-  
-  log.debug("About to register resources");
-  
-  // Register user resources
-  registerUserResources(server, makeRequest, log);
-  
-  // Register project resources
-  registerProjectResources(server, makeRequest, log);
-  
-  // Register entries resources
-  registerEntryResources(server, makeRequest, log);
-  
-  log.debug("Resources registered");
+    
+    try {
+      registerProjectResources(server, makeRequest, log);
+      log.debug("Project resources registered successfully");
+    } catch (error: any) {
+      log.error("Failed to register project resources:", error.message);
+      // Continue with other registrations
+    }
+    
+    try {
+      registerEntryResources(server, makeRequest, log);
+      log.debug("Entry resources registered successfully");
+    } catch (error: any) {
+      log.error("Failed to register entry resources:", error.message);
+      // Continue execution
+    }
+    
+    log.debug("All resources registration attempts completed");
+  } catch (error: any) {
+    log.error("Fatal error during resources registration:", error.message);
+    throw error; // Rethrow to allow server to handle
+  }
 }
 
 /**
@@ -90,7 +121,10 @@ function registerUserResources(
   // List users callback for users resource
   const listUsersCallback: ListResourcesCallback = async (extra) => {
     try {
+      logger.debug("Listing users...");
       const users = await makeRequest('/users');
+      logger.debug(`Retrieved ${users.length} users`);
+      
       const resources: Resource[] = users.map((user: any) => ({
         uri: `noko://user/${user.id}`,
         name: `${user.first_name} ${user.last_name}`,
@@ -100,20 +134,22 @@ function registerUserResources(
       return {
         resources
       };
-    } catch (error) {
-      logger.error("Error listing users", error);
+    } catch (error: any) {
+      logger.error("Error listing users", error.message);
+      // Return empty list instead of failing
       return { resources: [] };
     }
   };
 
-  // List users resource
+  // Register users resource template
+  logger.debug("Registering users resource template");
   server.resource(
     "users",
     new ResourceTemplate("noko://users", { 
       list: listUsersCallback 
     }),
     async (uri) => {
-      logger.debug("Fetching users");
+      logger.debug("Fetching users content");
       try {
         const users = await makeRequest('/users');
         
@@ -130,7 +166,7 @@ function registerUserResources(
           ]
         };
       } catch (error: any) {
-        logger.error("Error fetching users", error);
+        logger.error("Error fetching users content", error.message);
         
         return {
           contents: [
@@ -148,7 +184,8 @@ function registerUserResources(
     }
   );
 
-  // Single user resource
+  // Register single user resource template
+  logger.debug("Registering single user resource template");
   server.resource(
     "user",
     new ResourceTemplate("noko://user/{id}", { list: undefined }),
@@ -170,7 +207,7 @@ function registerUserResources(
           ]
         };
       } catch (error: any) {
-        logger.error(`Error fetching user ${id}`, error);
+        logger.error(`Error fetching user ${id}`, error.message);
         
         return {
           contents: [
