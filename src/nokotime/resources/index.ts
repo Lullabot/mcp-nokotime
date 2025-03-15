@@ -119,7 +119,7 @@ function registerUserResources(
   logger: Logger
 ) {
   // List users callback for users resource
-  const listUsersCallback: ListResourcesCallback = async (extra) => {
+  const listUsersCallback: ListResourcesCallback = async (_extra) => {
     try {
       logger.debug("Listing users...");
       const users = await makeRequest('/users');
@@ -235,7 +235,7 @@ function registerProjectResources(
   logger: Logger
 ) {
   // Project listing callback
-  const listProjectsCallback: ListResourcesCallback = async (extra) => {
+  const listProjectsCallback: ListResourcesCallback = async (_extra) => {
     try {
       const projects = await makeRequest('/projects');
       const resources: Resource[] = projects.map((project: any) => ({
@@ -345,7 +345,7 @@ function registerEntryResources(
   logger: Logger
 ) {
   // Entry listing callback
-  const listEntriesCallback: ListResourcesCallback = async (extra) => {
+  const listEntriesCallback: ListResourcesCallback = async (_extra) => {
     try {
       const entries = await makeRequest('/entries');
       const resources: Resource[] = entries.map((entry: any) => ({

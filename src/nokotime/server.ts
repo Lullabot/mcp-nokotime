@@ -161,7 +161,7 @@ export class NokoServer {
     }
   }
 
-  private async _handleToolCall(name: string, args: Record<string, any>) {
+  private async _handleToolCall(name: string, args: Record<string, any>, options?: { pathParams?: Record<string, any> }) {
     try {
       console.error(`Tool call received - name: ${name}`);
       
@@ -180,6 +180,14 @@ export class NokoServer {
       // Need to assert type here to satisfy TypeScript
       const nokoPath = TOOL_PATHS[name as keyof typeof TOOL_PATHS];
       const method = TOOL_METHODS[name as keyof typeof TOOL_METHODS];
+      
+      // Replace path parameters if provided
+      let resolvedPath = nokoPath;
+      if (options?.pathParams) {
+        for (const [param, value] of Object.entries(options.pathParams)) {
+          resolvedPath = resolvedPath.replace(`:${param}`, String(value));
+        }
+      }
       
       // Convert tool arguments to API parameters
       let params: Record<string, any> | null = null;
@@ -223,11 +231,11 @@ export class NokoServer {
         "User-Agent": "NokoMCP/0.1.0"
       };
       
-      console.error(`Making Noko API request: ${method} ${this.baseUrl}${nokoPath}`);
+      console.error(`Making Noko API request: ${method} ${this.baseUrl}${resolvedPath}`);
       
       const nokoResponse = await axios({
         method: method.toLowerCase(),
-        url: `${this.baseUrl}${nokoPath}`,
+        url: `${this.baseUrl}${resolvedPath}`,
         headers,
         params,
         data: jsonData,

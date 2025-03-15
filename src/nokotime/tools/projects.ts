@@ -16,7 +16,7 @@ export const PROJECT_TOOL_METHODS = {
  * @param server - The MCP server instance
  * @param handleToolCall - Function to handle the actual API call
  */
-export function registerProjectTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>) => Promise<any>): void {
+export function registerProjectTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>, options?: { pathParams?: Record<string, any> }) => Promise<any>): void {
   // Register list_projects tool
   server.tool(
     "noko_list_projects",

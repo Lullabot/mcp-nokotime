@@ -20,7 +20,7 @@ export const TOOL_METHODS = {
 /**
  * Register all tools
  */
-export function registerAllTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>) => Promise<any>): void {
+export function registerAllTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>, options?: { pathParams?: Record<string, any> }) => Promise<any>): void {
   registerEntryTools(server, handleToolCall);
   registerProjectTools(server, handleToolCall);
   registerUserTools(server, handleToolCall);

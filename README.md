@@ -81,7 +81,27 @@ The server provides the following tools to AI assistants:
    - Required parameters: `date`, `minutes`, `description`
    - Optional parameters: `project_id`, `user_id`, `billable`, `tags`, `invoice_id`
 
-3. `noko_list_projects` - List all available projects with optional filtering and pagination
+3. `noko_edit_entry` - Edit an existing time entry
+   - Required parameters: 
+     - `id` - ID of the entry to edit
+     - `confirm` - Must be set to true to confirm the edit operation
+   - Optional parameters:
+     - `date` - Date of the entry in YYYY-MM-DD format
+     - `minutes` - Duration of the entry in minutes
+     - `description` - Description of the work performed
+     - `project_id` - ID of the project this entry belongs to
+     - `user_id` - ID of the user this entry belongs to
+     - `billable` - Whether this entry is billable
+     - `tags` - Array of tags to associate with this entry
+     - `invoice_id` - ID of an invoice to associate with this entry
+
+4. `noko_delete_entry` - Delete a time entry permanently
+   - Required parameters:
+     - `id` - ID of the entry to delete
+     - `confirm` - Must be set to true to confirm the delete operation
+   - Note: Entries cannot be deleted if they have been invoiced, are associated with an archived project, or are approved and locked
+
+5. `noko_list_projects` - List all available projects with optional filtering and pagination
    - Optional parameters:
      - `name` - Filter projects by name (partial matching)
      - `project_group_ids` - Comma-separated list of project group IDs to filter by (e.g., '1,2,3')
@@ -95,7 +115,7 @@ The server provides the following tools to AI assistants:
      - Object with `data` (array of projects) and `pagination` properties when pagination is present
      - Pagination includes links to `first`, `last`, `next`, and `prev` pages when available
 
-4. `noko_list_users` - List all users with optional filtering and pagination
+6. `noko_list_users` - List all users with optional filtering and pagination
    - Optional parameters:
      - `name` - Filter users by name (partial matching)
      - `email` - Filter users by email (partial matching)

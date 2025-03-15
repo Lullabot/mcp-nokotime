@@ -32,6 +32,6 @@ export interface ToolDefinition {
 /**
  * Noko API response
  */
-export interface NokoResponse<T> {
+export interface NokoResponse<_T> {
   [key: string]: any;
 } 

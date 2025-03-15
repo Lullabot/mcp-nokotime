@@ -16,7 +16,7 @@ export const USER_TOOL_METHODS = {
  * @param server - The MCP server instance
  * @param handleToolCall - Function to handle the actual API call
  */
-export function registerUserTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>) => Promise<any>): void {
+export function registerUserTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>, options?: { pathParams?: Record<string, any> }) => Promise<any>): void {
   // Register list_users tool
   server.tool(
     "noko_list_users",
