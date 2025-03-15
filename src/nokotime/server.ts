@@ -235,7 +235,23 @@ export class NokoServer {
       
       console.error(`Noko API Response: ${nokoResponse.status}`);
       
-      return createSuccessResponse(nokoResponse.data);
+      // Process response data
+      let responseData = nokoResponse.data;
+      
+      // Extract pagination information from Link header if present
+      if (nokoResponse.headers?.link) {
+        const paginationInfo = this.parseLinkHeader(nokoResponse.headers.link);
+        
+        // Add pagination metadata to the response
+        if (Array.isArray(responseData)) {
+          responseData = {
+            data: responseData,
+            pagination: paginationInfo
+          };
+        }
+      }
+      
+      return createSuccessResponse(responseData);
     } catch (error: any) {
       console.error("Error handling tool call", error.message);
       logErrorToFile("Error handling tool call:", error);
@@ -279,6 +295,34 @@ export class NokoServer {
       logErrorToFile("Error running server:", error);
       throw error;
     }
+  }
+
+  /**
+   * Parse the Link header from Noko API to extract pagination information
+   * 
+   * @param linkHeader - The Link header string from the API response
+   * @returns An object containing pagination URL information
+   */
+  private parseLinkHeader(linkHeader: string): Record<string, string> {
+    const result: Record<string, string> = {};
+    
+    // Link header format: <url>; rel="relation", <url>; rel="relation", ...
+    const links = linkHeader.split(',');
+    
+    for (const link of links) {
+      const [urlPart, relPart] = link.split(';').map(part => part.trim());
+      
+      // Extract the URL (remove < and >)
+      const url = urlPart.slice(1, -1);
+      
+      // Extract the relation (e.g., rel="next" -> next)
+      const relMatch = relPart.match(/rel="([^"]+)"/);
+      if (relMatch && relMatch[1]) {
+        result[relMatch[1]] = url;
+      }
+    }
+    
+    return result;
   }
 }
 

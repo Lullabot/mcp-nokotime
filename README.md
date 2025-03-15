@@ -63,8 +63,18 @@ The server provides the following tools to AI assistants:
 3. `noko_list_projects` - List all available projects
    - Parameters: `name`, `state`, `billing_increment`, `enabled_for_tracking`, `per_page`, `page`
 
-4. `noko_list_users` - List all users
-   - Parameters: `name`, `email`, `state`, `role`, `per_page`, `page`
+4. `noko_list_users` - List all users with optional filtering and pagination
+   - Optional parameters:
+     - `name` - Filter users by name (partial matching)
+     - `email` - Filter users by email (partial matching)
+     - `state` - Filter by account state: "disabled", "pending", "active", "suspended", or "all" (default: all)
+     - `role` - Filter by role: "supervisor", "leader", "coworker", or "contractor"
+     - `per_page` - Number of results per page (1-1000, default: 30)
+     - `page` - Page number (starts at 1)
+   - Returns:
+     - Array of user objects when no pagination is needed
+     - Object with `data` (array of users) and `pagination` properties when pagination is present
+     - Pagination includes links to `first`, `last`, `next`, and `prev` pages when available
 
 ## License
 
