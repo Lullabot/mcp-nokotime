@@ -53,8 +53,29 @@ npm run dev
 
 The server provides the following tools to AI assistants:
 
-1. `noko_list_entries` - List time entries with optional filters
-   - Parameters: `user_ids[]`, `project_ids[]`, `from`, `to`, `invoiced`, `updated_from`, `updated_to`, `per_page`, `page`
+1. `noko_list_entries` - List time entries with optional filters and pagination
+   - Optional parameters:
+     - `user_ids` - Comma-separated list of user IDs to filter by (e.g., '1,2,3')
+     - `project_ids` - Comma-separated list of project IDs to filter by (e.g., '4,5,6')
+     - `description` - Filter entries containing this text in their description
+     - `tag_ids` - Comma-separated list of tag IDs to filter by (e.g., '7,8,9')
+     - `tag_filter_type` - How to filter by tags: 'and' (default) or 'combination of'
+     - `invoice_ids` - Comma-separated list of invoice IDs to filter by
+     - `import_ids` - Comma-separated list of import IDs to filter by
+     - `from` - Only include entries from or after this date (YYYY-MM-DD)
+     - `to` - Only include entries on or before this date (YYYY-MM-DD)
+     - `invoiced` - Filter by invoice status: true for invoiced entries, false for uninvoiced entries
+     - `invoiced_at_from`/`invoiced_at_to` - Filter by invoice date range (YYYY-MM-DD)
+     - `updated_from`/`updated_to` - Filter by update timestamp range (YYYY-MM-DDTHH:MM:SSZ)
+     - `billable` - Filter by billable status: true for billable entries, false for unbillable entries
+     - `approved_at_from`/`approved_at_to` - Filter by approval date range (YYYY-MM-DD)
+     - `approved_by_ids` - Comma-separated list of user IDs who approved entries
+     - `per_page` - Number of results per page (1-1000, default: 30)
+     - `page` - Page number (starts at 1)
+   - Returns:
+     - Array of entry objects when no pagination is needed
+     - Object with `data` (array of entries) and `pagination` properties when pagination is present
+     - Pagination includes links to `first`, `last`, `next`, and `prev` pages when available
 
 2. `noko_create_entry` - Create a new time entry
    - Required parameters: `date`, `minutes`, `description`
