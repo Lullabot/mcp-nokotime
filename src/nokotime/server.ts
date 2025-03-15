@@ -10,6 +10,46 @@ import { registerResources } from './resources/index.js';
 // Load environment variables
 dotenv.config();
 
+// Set up error logging to a file for debugging
+const errorLogDir = path.resolve(process.cwd(), 'logs');
+if (!fs.existsSync(errorLogDir)) {
+  fs.mkdirSync(errorLogDir, { recursive: true });
+}
+const errorLogFile = path.join(errorLogDir, 'error.log');
+
+// Function to write error details to file
+function logErrorToFile(message: string, error?: any) {
+  try {
+    const timestamp = new Date().toISOString();
+    let errorDetail = `[${timestamp}] ${message}\n`;
+    
+    if (error) {
+      errorDetail += `Error: ${error.message || 'Unknown error'}\n`;
+      if (error.stack) {
+        errorDetail += `Stack: ${error.stack}\n`;
+      }
+    }
+    
+    fs.appendFileSync(errorLogFile, errorDetail + '\n');
+  } catch (e) {
+    // Last resort if we can't even log to file
+    console.error('Failed to write to error log:', e);
+  }
+}
+
+// Override global error handlers
+process.on('uncaughtException', (err) => {
+  logErrorToFile('Uncaught exception:', err);
+  console.error('Uncaught exception:', err);
+  // Don't exit - let's try to keep the process alive
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logErrorToFile('Unhandled rejection at:', reason);
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  // Don't exit - let's try to keep the process alive
+});
+
 // Setup log file
 const logDir = path.resolve(process.cwd(), 'logs');
 if (!fs.existsSync(logDir)) {
@@ -21,17 +61,27 @@ const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 // Set up logging
 const logger = {
   debug: (...args: any[]) => {
-    const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ');
-    logStream.write(`[DEBUG] ${new Date().toISOString()}: ${message}\n`);
+    try {
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      logStream.write(`[DEBUG] ${new Date().toISOString()}: ${message}\n`);
+    } catch (e) {
+      logErrorToFile('Error in debug logger:', e);
+    }
   },
   error: (...args: any[]) => {
-    const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ');
-    logStream.write(`[ERROR] ${new Date().toISOString()}: ${message}\n`);
-    console.error(...args); // Still send errors to stderr
+    try {
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      logStream.write(`[ERROR] ${new Date().toISOString()}: ${message}\n`);
+      logErrorToFile(message);
+      console.error(...args); // Still send errors to stderr
+    } catch (e) {
+      logErrorToFile('Error in error logger:', e);
+      console.error('Error in error logger:', e);
+    }
   },
 };
 
@@ -67,47 +117,61 @@ export class NokoServer {
   private baseUrl: string;
 
   constructor(name: string = "noko") {
-    this.baseUrl = "https://api.nokotime.com/v2";
-    
-    // Initialize MCP server
-    this.server = new McpServer({
-      name,
-      version: "0.1.0",
-      description: "Model Context Protocol server for Noko time tracking API"
-    });
-    
-    // Get API token from environment
-    const apiToken = process.env.NOKO_API_TOKEN;
-    if (!apiToken) {
-      logger.error("NOKO_API_TOKEN environment variable not set");
-      process.exit(1);
+    try {
+      this.baseUrl = "https://api.nokotime.com/v2";
+      
+      // Initialize MCP server
+      this.server = new McpServer({
+        name,
+        version: "0.1.0",
+        description: "Model Context Protocol server for Noko time tracking API"
+      });
+      
+      // Get API token from environment
+      const apiToken = process.env.NOKO_API_TOKEN;
+      if (!apiToken) {
+        logger.error("NOKO_API_TOKEN environment variable not set");
+        process.exit(1);
+      }
+      
+      // Register just tools first for testing
+      registerAllTools(this.server, this._handleToolCall.bind(this));
+      
+      logger.debug("Tools registered successfully");
+      
+      // Try to register resources in a try/catch block
+      try {
+        logger.debug("About to register resources...");
+        registerResources(this.server, apiToken, logger);
+        logger.debug("Resources registered successfully.");
+      } catch (resError) {
+        logger.error("Error registering resources:", resError);
+        logErrorToFile("Error registering resources:", resError);
+        // Continue without resources for now
+      }
+    } catch (error) {
+      logger.error("Error initializing server:", error);
+      logErrorToFile("Error initializing server:", error);
+      throw error; // Re-throw to inform caller
     }
-    
-    // Register resources
-    logger.debug("Registering resources...");
-    registerResources(this.server, apiToken, logger);
-    logger.debug("Resources registered.");
-    
-    // Register tools from separate modules
-    registerAllTools(this.server, this._handleToolCall.bind(this));
   }
 
   private async _handleToolCall(name: string, args: Record<string, any>) {
-    logger.debug(`Tool call received - name: ${name}, arguments:`, args);
-    
-    // Get API token from environment
-    const apiToken = process.env.NOKO_API_TOKEN;
-    if (!apiToken) {
-      logger.error("NOKO_API_TOKEN not found in environment");
-      return createErrorResponse("Error: NOKO_API_TOKEN environment variable not set");
-    }
-
     try {
+      logger.debug(`Tool call received - name: ${name}, arguments:`, args);
+      
+      // Get API token from environment
+      const apiToken = process.env.NOKO_API_TOKEN;
+      if (!apiToken) {
+        logger.error("NOKO_API_TOKEN not found in environment");
+        return createErrorResponse("Error: NOKO_API_TOKEN environment variable not set");
+      }
+
       // Get the Noko API path and method
       if (!(name in TOOL_PATHS)) {
         return createErrorResponse(`Error: Tool ${name} not found`);
       }
-        
+          
       // Need to assert type here to satisfy TypeScript
       const nokoPath = TOOL_PATHS[name as keyof typeof TOOL_PATHS];
       const method = TOOL_METHODS[name as keyof typeof TOOL_METHODS];
@@ -173,6 +237,7 @@ export class NokoServer {
       return createSuccessResponse(nokoResponse.data);
     } catch (error: any) {
       logger.error("Error handling tool call", error);
+      logErrorToFile("Error handling tool call:", error);
       
       // Handle Axios errors specifically
       if (error.response) {
@@ -202,14 +267,26 @@ export class NokoServer {
   }
 
   async run(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
+    try {
+      logger.debug("Starting server with StdioServerTransport");
+      const transport = new StdioServerTransport();
+      
+      logger.debug("Connecting transport to server");
+      await this.server.connect(transport);
+      
+      logger.debug("Server running successfully");
+    } catch (error) {
+      logger.error("Error running server:", error);
+      logErrorToFile("Error running server:", error);
+      throw error;
+    }
   }
 }
 
 // Signal handling for graceful shutdown
 function handleSignals(): void {
   function handleInterrupt() {
+    logErrorToFile("Shutting down gracefully...");
     console.error("\nShutting down gracefully...");
     process.exit(0);
   }
@@ -219,10 +296,18 @@ function handleSignals(): void {
 }
 
 export function runServer(): void {
-  handleSignals();
-  const server = new NokoServer();
-  server.run().catch(err => {
-    console.error('Error running server:', err);
+  try {
+    logErrorToFile("Starting server...");
+    handleSignals();
+    const server = new NokoServer();
+    server.run().catch(err => {
+      logErrorToFile("Error running server:", err);
+      console.error('Error running server:', err);
+      process.exit(1);
+    });
+  } catch (error) {
+    logErrorToFile("Failed to start server:", error);
+    console.error('Failed to start server:', error);
     process.exit(1);
-  });
+  }
 } 
