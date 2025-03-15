@@ -128,6 +128,29 @@ The server provides the following tools to AI assistants:
      - Object with `data` (array of users) and `pagination` properties when pagination is present
      - Pagination includes links to `first`, `last`, `next`, and `prev` pages when available
 
+## Safety Features
+
+### Confirmation for Destructive Operations
+
+Tools that perform destructive operations (like `noko_edit_entry` and `noko_delete_entry`) include a required `confirm` parameter which must be explicitly set to `true` before the operation will proceed.
+
+When using an AI assistant like Claude with these tools:
+
+1. When you request a destructive action, the assistant will recognize that confirmation is required
+2. The assistant will ask you to confirm before proceeding with the operation
+3. Only after receiving your confirmation will the assistant set `confirm: true` and execute the operation
+
+This provides an additional safety layer to prevent accidental modifications or deletions of your time entries.
+
+Example interaction:
+
+```
+User: Delete time entry 12345
+Assistant: I can help you delete entry #12345. This action is permanent and cannot be undone. Would you like to proceed?
+User: Yes, please delete it
+Assistant: [Executes deletion with confirm=true] Entry #12345 has been successfully deleted.
+```
+
 ## License
 
 MIT
