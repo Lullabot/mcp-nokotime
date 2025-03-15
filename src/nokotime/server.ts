@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TOOL_PATHS, TOOL_METHODS, registerAllTools } from './tools/index.js';
@@ -8,10 +10,29 @@ import { registerResources } from './resources/index.js';
 // Load environment variables
 dotenv.config();
 
+// Setup log file
+const logDir = path.resolve(process.cwd(), 'logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+const logFile = path.join(logDir, 'nokotime.log');
+const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
 // Set up logging
 const logger = {
-  debug: (...args: any[]) => console.debug(...args),
-  error: (...args: any[]) => console.error(...args),
+  debug: (...args: any[]) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ');
+    logStream.write(`[DEBUG] ${new Date().toISOString()}: ${message}\n`);
+  },
+  error: (...args: any[]) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ');
+    logStream.write(`[ERROR] ${new Date().toISOString()}: ${message}\n`);
+    console.error(...args); // Still send errors to stderr
+  },
 };
 
 // Define text content type for responses
@@ -58,21 +79,14 @@ export class NokoServer {
     // Get API token from environment
     const apiToken = process.env.NOKO_API_TOKEN;
     if (!apiToken) {
-      console.error("NOKO_API_TOKEN environment variable not set");
+      logger.error("NOKO_API_TOKEN environment variable not set");
       process.exit(1);
     }
     
-    // Enable debug logging for resources
-    console.debug("Registering resources...");
-    
     // Register resources
-    registerResources(this.server, apiToken, {
-      debug: (...args: any[]) => console.debug(...args),
-      error: (...args: any[]) => console.error(...args)
-    });
-    
-    // Log resource registration result
-    console.debug("Resources registered.");
+    logger.debug("Registering resources...");
+    registerResources(this.server, apiToken, logger);
+    logger.debug("Resources registered.");
     
     // Register tools from separate modules
     registerAllTools(this.server, this._handleToolCall.bind(this));

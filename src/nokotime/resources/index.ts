@@ -38,10 +38,10 @@ type ListResourcesCallback = (extra: RequestHandlerExtra) => ListResourcesResult
 export function registerResources(server: McpServer, apiToken: string, logger?: Logger) {
   const baseUrl = "https://api.nokotime.com/v2";
   
-  // Use console as fallback if no logger provided
+  // Use console as fallback if no logger provided - should never happen
   const log = logger || {
-    debug: console.debug,
-    error: console.error
+    debug: (msg: string) => {},
+    error: (msg: string) => {}
   };
   
   // Create API client for Noko
@@ -60,7 +60,7 @@ export function registerResources(server: McpServer, apiToken: string, logger?: 
       
       return response.data;
     } catch (error: any) {
-      log.error('Error making API request', error);
+      log.error('Error making API request: ' + (error.message || 'Unknown error'));
       throw new Error(error.response?.data?.error || error.message || 'Unknown API error');
     }
   };
