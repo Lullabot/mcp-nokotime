@@ -7,6 +7,31 @@ interface Logger {
   error: (message: string, ...args: any[]) => void;
 }
 
+// Define Resource interface for list results with index signature
+interface Resource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+  [key: string]: unknown;
+}
+
+// Define ListResourcesResult interface
+interface ListResourcesResult {
+  resources: Resource[];
+  _meta?: Record<string, unknown>;
+  nextCursor?: string;
+  [key: string]: unknown;
+}
+
+// RequestHandlerExtra type
+interface RequestHandlerExtra {
+  [key: string]: unknown;
+}
+
+// Get the correct type for ListResourcesCallback
+type ListResourcesCallback = (extra: RequestHandlerExtra) => ListResourcesResult | Promise<ListResourcesResult>;
+
 /**
  * Register all resources with the MCP server
  */
@@ -40,6 +65,8 @@ export function registerResources(server: McpServer, apiToken: string, logger?: 
     }
   };
   
+  log.debug("About to register resources");
+  
   // Register user resources
   registerUserResources(server, makeRequest, log);
   
@@ -48,6 +75,8 @@ export function registerResources(server: McpServer, apiToken: string, logger?: 
   
   // Register entries resources
   registerEntryResources(server, makeRequest, log);
+  
+  log.debug("Resources registered");
 }
 
 /**
@@ -58,10 +87,31 @@ function registerUserResources(
   makeRequest: (path: string) => Promise<any>,
   logger: Logger
 ) {
+  // List users callback for users resource
+  const listUsersCallback: ListResourcesCallback = async (extra) => {
+    try {
+      const users = await makeRequest('/users');
+      const resources: Resource[] = users.map((user: any) => ({
+        uri: `noko://user/${user.id}`,
+        name: `${user.first_name} ${user.last_name}`,
+        description: `${user.email} (${user.state})`,
+      }));
+      
+      return {
+        resources
+      };
+    } catch (error) {
+      logger.error("Error listing users", error);
+      return { resources: [] };
+    }
+  };
+
   // List users resource
   server.resource(
     "users",
-    new ResourceTemplate("noko://users", { list: undefined }),
+    new ResourceTemplate("noko://users", { 
+      list: listUsersCallback 
+    }),
     async (uri) => {
       logger.debug("Fetching users");
       try {
@@ -97,6 +147,46 @@ function registerUserResources(
       }
     }
   );
+
+  // Single user resource
+  server.resource(
+    "user",
+    new ResourceTemplate("noko://user/{id}", { list: undefined }),
+    async (uri, { id }) => {
+      logger.debug(`Fetching user ${id}`);
+      try {
+        const user = await makeRequest(`/users/${id}`);
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `User: ${user.first_name} ${user.last_name}`,
+                description: `Details for Noko user ${id}`
+              },
+              text: JSON.stringify(user, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching user ${id}`, error);
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `User Error: ${id}`,
+                description: `Error fetching user ${id}`
+              },
+              text: `Error fetching user: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
+    }
+  );
 }
 
 /**
@@ -107,10 +197,31 @@ function registerProjectResources(
   makeRequest: (path: string) => Promise<any>,
   logger: Logger
 ) {
+  // Project listing callback
+  const listProjectsCallback: ListResourcesCallback = async (extra) => {
+    try {
+      const projects = await makeRequest('/projects');
+      const resources: Resource[] = projects.map((project: any) => ({
+        uri: `noko://project/${project.id}`,
+        name: project.name,
+        description: `${project.name} (${project.state})`,
+      }));
+      
+      return {
+        resources
+      };
+    } catch (error) {
+      logger.error("Error listing projects", error);
+      return { resources: [] };
+    }
+  };
+
   // List projects resource
   server.resource(
     "projects",
-    new ResourceTemplate("noko://projects", { list: undefined }),
+    new ResourceTemplate("noko://projects", { 
+      list: listProjectsCallback 
+    }),
     async (uri) => {
       logger.debug("Fetching projects");
       try {
@@ -146,6 +257,46 @@ function registerProjectResources(
       }
     }
   );
+  
+  // Single project resource
+  server.resource(
+    "project",
+    new ResourceTemplate("noko://project/{id}", { list: undefined }),
+    async (uri, { id }) => {
+      logger.debug(`Fetching project ${id}`);
+      try {
+        const project = await makeRequest(`/projects/${id}`);
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Project: ${project.name}`,
+                description: `Details for Noko project ${id}`
+              },
+              text: JSON.stringify(project, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching project ${id}`, error);
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Project Error: ${id}`,
+                description: `Error fetching project ${id}`
+              },
+              text: `Error fetching project: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
+    }
+  );
 }
 
 /**
@@ -156,10 +307,31 @@ function registerEntryResources(
   makeRequest: (path: string) => Promise<any>,
   logger: Logger
 ) {
+  // Entry listing callback
+  const listEntriesCallback: ListResourcesCallback = async (extra) => {
+    try {
+      const entries = await makeRequest('/entries');
+      const resources: Resource[] = entries.map((entry: any) => ({
+        uri: `noko://entry/${entry.id}`,
+        name: `Entry ${entry.id}`,
+        description: entry.description || `Time entry from ${entry.date}`,
+      }));
+      
+      return {
+        resources
+      };
+    } catch (error) {
+      logger.error("Error listing entries", error);
+      return { resources: [] };
+    }
+  };
+
   // List entries resource
   server.resource(
     "entries",
-    new ResourceTemplate("noko://entries", { list: undefined }),
+    new ResourceTemplate("noko://entries", { 
+      list: listEntriesCallback 
+    }),
     async (uri) => {
       logger.debug("Fetching entries");
       try {
@@ -189,6 +361,46 @@ function registerEntryResources(
                 description: "Error fetching entries"
               },
               text: `Error fetching entries: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
+    }
+  );
+  
+  // Single entry resource
+  server.resource(
+    "entry",
+    new ResourceTemplate("noko://entry/{id}", { list: undefined }),
+    async (uri, { id }) => {
+      logger.debug(`Fetching entry ${id}`);
+      try {
+        const entry = await makeRequest(`/entries/${id}`);
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Entry: ${entry.id}`,
+                description: `Details for Noko time entry ${id}`
+              },
+              text: JSON.stringify(entry, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching entry ${id}`, error);
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Entry Error: ${id}`,
+                description: `Error fetching entry ${id}`
+              },
+              text: `Error fetching entry: ${error.message || 'Unknown error'}`
             }
           ]
         };

@@ -62,11 +62,17 @@ export class NokoServer {
       process.exit(1);
     }
     
+    // Enable debug logging for resources
+    console.debug("Registering resources...");
+    
     // Register resources
     registerResources(this.server, apiToken, {
       debug: (...args: any[]) => console.debug(...args),
       error: (...args: any[]) => console.error(...args)
     });
+    
+    // Log resource registration result
+    console.debug("Resources registered.");
     
     // Register tools from separate modules
     registerAllTools(this.server, this._handleToolCall.bind(this));
