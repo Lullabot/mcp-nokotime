@@ -27,13 +27,45 @@ npm run build
 
 ## Configuration
 
-Create a `.env` file in the root directory with the following content:
+You can obtain your Noko API token from your Noko account settings. 
+
+An `.env` file will be used when running the server directly via `npm start` or during development. Please put your API token in the .env file.
 
 ```
 NOKO_API_TOKEN=your_noko_api_token
 ```
 
-You can obtain your Noko API token from your Noko account settings.
+
+
+## Claude Desktop Configuration
+
+To use this MCP server with Claude Desktop, add the following configuration to your `claude_desktop_config.json` (located at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "noko": {
+      "command": "node",
+      "args": [
+        "/path/to/mcp-nokotime"
+      ],
+      "env": {
+        "NOKO_API_TOKEN": "your_noko_api_token"
+      }
+    }
+  }
+}
+```
+
+**Note about environment variables**: While the project uses a `.env` file for direct server execution, Claude Desktop requires the environment variables to be specified in the `claude_desktop_config.json` file as shown above. The `.env` file is not automatically read when Claude Desktop launches the server.
+
+Make sure to:
+1. Replace `/path/to/mcp-nokotime` with the actual path where you cloned the repository
+2. Replace `your_noko_api_token` with your actual Noko API token from your Noko account settings (same token as in your `.env` file)
+3. Ensure you have Node.js installed on your system (verify by running `node --version` in your terminal)
+4. Restart Claude Desktop after making these changes
+
+The server includes built-in safety features like requiring confirmation for destructive operations (edit/delete), so you don't need to worry about accidental modifications to your time entries.
 
 ## Usage
 
