@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/sdk';
+import { NokoApi } from '../noko-api';
 
 // Paths and methods for project-related endpoints
 export const PROJECT_TOOL_PATHS = {
@@ -12,11 +13,11 @@ export const PROJECT_TOOL_METHODS = {
 
 /**
  * Register project-related tools
- * 
+ *
  * @param server - The MCP server instance
- * @param handleToolCall - Function to handle the actual API call
+ * @param nokoApi - The Noko API client
  */
-export function registerProjectTools(server: McpServer, handleToolCall: (name: string, args: Record<string, any>, options?: { pathParams?: Record<string, any> }) => Promise<any>): void {
+export function registerProjectTools(server: McpServer, nokoApi: NokoApi): void {
   // Register list_projects tool
   server.tool(
     "noko_list_projects",
@@ -38,7 +39,7 @@ export function registerProjectTools(server: McpServer, handleToolCall: (name: s
         .describe("Page number (starts at 1)"),
     },
     async (args) => {
-      return handleToolCall("noko_list_projects", args);
+      return nokoApi.request('GET', '/projects', args);
     }
   );
 } 
