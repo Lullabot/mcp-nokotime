@@ -27,22 +27,24 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
   // Register list_entries tool
   server.tool(
     "noko_list_entries",
-    "List time entries with optional filters and pagination",
+    "List time entries with optional filters and pagination, or get a specific entry by ID",
     {
-      user_ids: z.string().optional()
-        .describe("Comma-separated list of user IDs to filter by (e.g., '1,2,3')"),
-      project_ids: z.string().optional()
-        .describe("Comma-separated list of project IDs to filter by (e.g., '4,5,6')"),
+      id: z.number().optional()
+        .describe("ID of a specific entry to get (if provided, other filters are ignored)"),
+      user_ids: z.array(z.number()).optional()
+        .describe("List of user IDs to filter by (e.g., [1,2,3])"),
+      project_ids: z.array(z.number()).optional()
+        .describe("List of project IDs to filter by (e.g., [4,5,6])"),
       description: z.string().optional()
         .describe("Filter entries containing this text in their description"),
-      tag_ids: z.string().optional()
-        .describe("Comma-separated list of tag IDs to filter by (e.g., '7,8,9')"),
+      tag_ids: z.array(z.number()).optional()
+        .describe("List of tag IDs to filter by (e.g., [7,8,9])"),
       tag_filter_type: z.enum(["and", "combination of"]).optional()
         .describe("How to filter by tags: 'and' (default) requires all tags, 'combination of' requires any tag"),
-      invoice_ids: z.string().optional()
-        .describe("Comma-separated list of invoice IDs to filter by (e.g., '1,2,3')"),
-      import_ids: z.string().optional()
-        .describe("Comma-separated list of import IDs to filter by (e.g., '4,5,6')"),
+      invoice_ids: z.array(z.number()).optional()
+        .describe("List of invoice IDs to filter by (e.g., [1,2,3])"),
+      import_ids: z.array(z.number()).optional()
+        .describe("List of import IDs to filter by (e.g., [4,5,6])"),
       from: z.string().optional()
         .describe("Only include entries from or after this date (YYYY-MM-DD)"),
       to: z.string().optional()
@@ -63,15 +65,22 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
         .describe("Only include entries approved from or after this date (YYYY-MM-DD)"),
       approved_at_to: z.string().optional()
         .describe("Only include entries approved on or before this date (YYYY-MM-DD)"),
-      approved_by_ids: z.string().optional()
-        .describe("Comma-separated list of user IDs who approved entries (e.g., '1,2,3')"),
+      approved_by_ids: z.array(z.number()).optional()
+        .describe("List of user IDs who approved entries (e.g., [1,2,3])"),
       per_page: z.number().min(1).max(1000).optional()
         .describe("Number of results per page (1-1000, default: 30)"),
       page: z.number().min(1).optional()
         .describe("Page number (starts at 1)"),
     },
-    async (args) => {
-      return nokoApi.request('GET', '/entries', args);
+    async (args: any) => {
+      // If ID is provided, get specific entry
+      if (args.id) {
+        return nokoApi.request('GET', '/entries/:id', {}, { id: args.id });
+      }
+      
+      // Otherwise, list entries with filters
+      const { id: _id, ...listArgs } = args;
+      return nokoApi.request('GET', '/entries', listArgs);
     }
   );
 
@@ -97,7 +106,7 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
       invoice_id: z.number().optional()
         .describe("ID of an invoice to associate with this entry"),
     },
-    async (args) => {
+    async (args: any) => {
       return nokoApi.request('POST', '/entries', args);
     }
   );
@@ -126,7 +135,7 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
       invoice_id: z.number().optional()
         .describe("ID of an invoice to associate with this entry"),
     },
-    async (args) => {
+    async (args: any) => {
       const { id, ...apiArgs } = args;
       return nokoApi.request('PUT', '/entries/:id', apiArgs, { id });
     }
@@ -140,7 +149,7 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
       id: z.number()
         .describe("ID of the entry to delete"),
     },
-    async (args) => {
+    async (args: any) => {
       return nokoApi.request('DELETE', '/entries/:id', {}, { id: args.id });
     }
   );

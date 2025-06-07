@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import axios from 'axios';
+import { NokoApi } from '../noko-api.js';
+import { Entry, Project, User } from '../types/index.js';
 
 // Logger interface
 interface Logger {
@@ -35,7 +36,7 @@ type ListResourcesCallback = (extra: RequestHandlerExtra) => ListResourcesResult
 /**
  * Register all resources with the MCP server
  */
-export function registerResources(server: McpServer, apiToken: string, logger?: Logger) {
+export function registerResources(server: McpServer, nokoApi: NokoApi, logger?: Logger) {
   // Use console as default logger if not provided
   const log = logger || {
     debug: (msg: string, ...args: any[]) => console.error(`[DEBUG] ${msg}`, ...args),
@@ -43,38 +44,22 @@ export function registerResources(server: McpServer, apiToken: string, logger?: 
   };
   
   try {
-    const baseUrl = "https://api.nokotime.com/v2";
-    
     log.debug("Starting resources registration");
   
-    // Create API client for Noko
-    const makeRequest = async (path: string) => {
+    const makeRequest = async (path: string, params: Record<string, any> = {}) => {
       try {
-        log.debug(`Making API request to: ${baseUrl}${path}`);
-        
-        const response = await axios({
-          method: 'GET',
-          url: `${baseUrl}${path}`,
-          headers: {
-            'X-NokoToken': apiToken,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'User-Agent': 'NokoMCP/0.1.0'
-          }
-        });
-        
-        log.debug(`API request succeeded: ${path}`);
-        return response.data;
+        log.debug(`Making API request to: ${path} with params: ${JSON.stringify(params)}`);
+        const response = await nokoApi.request('GET', path, params);
+
+        if (response.content && response.content[0]?.text) {
+          const data = JSON.parse(response.content[0].text);
+          // Handle paginated and non-paginated responses
+          return data.data || data;
+        }
+        throw new Error("Invalid API response format");
       } catch (error: any) {
         log.error(`Error making API request: ${path}`, error.message || 'Unknown error');
-        
-        // More detailed error info for debugging
-        if (error.response) {
-          log.error(`API error status: ${error.response.status}`);
-          log.error(`API error data: ${JSON.stringify(error.response.data || {})}`);
-        }
-        
-        throw new Error(error.response?.data?.error || error.message || 'Unknown API error');
+        throw new Error(error.message || 'Unknown API error');
       }
     };
     
@@ -122,10 +107,10 @@ function registerUserResources(
   const listUsersCallback: ListResourcesCallback = async (_extra) => {
     try {
       logger.debug("Listing users...");
-      const users = await makeRequest('/users');
+      const users = (await makeRequest('/users')) as User[];
       logger.debug(`Retrieved ${users.length} users`);
       
-      const resources: Resource[] = users.map((user: any) => ({
+      const resources: Resource[] = users.map((user: User) => ({
         uri: `noko://user/${user.id}`,
         name: `${user.first_name} ${user.last_name}`,
         description: `${user.email} (${user.state})`,
@@ -151,7 +136,7 @@ function registerUserResources(
     async (uri) => {
       logger.debug("Fetching users content");
       try {
-        const users = await makeRequest('/users');
+        const users = (await makeRequest('/users')) as User[];
         
         return {
           contents: [
@@ -192,7 +177,7 @@ function registerUserResources(
     async (uri, { id }) => {
       logger.debug(`Fetching user ${id}`);
       try {
-        const user = await makeRequest(`/users/${id}`);
+        const user = (await makeRequest(`/users/${id}`)) as User;
         
         return {
           contents: [
@@ -237,11 +222,11 @@ function registerProjectResources(
   // Project listing callback
   const listProjectsCallback: ListResourcesCallback = async (_extra) => {
     try {
-      const projects = await makeRequest('/projects');
-      const resources: Resource[] = projects.map((project: any) => ({
+      const projects = (await makeRequest('/projects')) as Project[];
+      const resources: Resource[] = projects.map((project: Project) => ({
         uri: `noko://project/${project.id}`,
         name: project.name,
-        description: `${project.name} (${project.state})`,
+        description: `${project.name} (${project.enabled ? 'enabled' : 'archived'})`,
       }));
       
       return {
@@ -262,7 +247,7 @@ function registerProjectResources(
     async (uri) => {
       logger.debug("Fetching projects");
       try {
-        const projects = await makeRequest('/projects');
+        const projects = (await makeRequest('/projects')) as Project[];
         
         return {
           contents: [
@@ -302,7 +287,7 @@ function registerProjectResources(
     async (uri, { id }) => {
       logger.debug(`Fetching project ${id}`);
       try {
-        const project = await makeRequest(`/projects/${id}`);
+        const project = (await makeRequest(`/projects/${id}`)) as Project;
         
         return {
           contents: [
@@ -341,78 +326,124 @@ function registerProjectResources(
  */
 function registerEntryResources(
   server: McpServer, 
-  makeRequest: (path: string) => Promise<any>,
+  makeRequest: (path: string, params?: Record<string, any>) => Promise<any>,
   logger: Logger
 ) {
-  // Entry listing callback
-  const listEntriesCallback: ListResourcesCallback = async (_extra) => {
+  // Entries listing callback for a specific project
+  const listEntriesForProjectCallback: ListResourcesCallback = async (extra) => {
     try {
-      const entries = await makeRequest('/entries');
-      const resources: Resource[] = entries.map((entry: any) => ({
+      const projectId = extra.projectId as string;
+      if (!projectId) {
+        return { resources: [] };
+      }
+      logger.debug(`Listing entries for project ${projectId}...`);
+      const entries = (await makeRequest(`/projects/${projectId}/entries`)) as Entry[];
+      logger.debug(`Retrieved ${entries.length} entries for project ${projectId}`);
+
+      const resources: Resource[] = entries.map((entry: Entry) => ({
         uri: `noko://entry/${entry.id}`,
-        name: `Entry ${entry.id}`,
-        description: entry.description || `Time entry from ${entry.date}`,
+        name: `Entry #${entry.id}: ${entry.minutes} minutes on ${entry.date}`,
+        description: entry.description || 'No description',
       }));
-      
+
       return {
-        resources
+        resources,
       };
-    } catch (error) {
-      logger.error("Error listing entries", error);
+    } catch (error: any) {
+      logger.error("Error listing entries for project", error.message);
       return { resources: [] };
     }
   };
 
-  // List entries resource
+  logger.debug("Registering entries (for project) resource template");
   server.resource(
-    "entries",
-    new ResourceTemplate("noko://entries", { 
-      list: listEntriesCallback 
+    "entries_for_project",
+    new ResourceTemplate("noko://project/{projectId}/entries", {
+      list: listEntriesForProjectCallback,
     }),
-    async (uri) => {
-      logger.debug("Fetching entries");
+    async (uri, { projectId }) => {
+      logger.debug(`Fetching entries content for project ${projectId}`);
       try {
-        const entries = await makeRequest('/entries');
-        
+        const entries = (await makeRequest(`/projects/${projectId}/entries`)) as Entry[];
         return {
           contents: [
             {
               uri: uri.href,
               metadata: {
-                title: "Noko Entries",
-                description: "List of time entries"
+                title: `Noko Entries for Project ${projectId}`,
+                description: `List of all Noko entries for project ${projectId}`,
               },
-              text: JSON.stringify(entries, null, 2)
-            }
-          ]
+              text: JSON.stringify(entries, null, 2),
+            },
+          ],
         };
       } catch (error: any) {
-        logger.error("Error fetching entries", error);
-        
+        logger.error(`Error fetching entries for project ${projectId}`, error.message);
         return {
           contents: [
             {
               uri: uri.href,
               metadata: {
-                title: "Noko Entries Error",
-                description: "Error fetching entries"
+                title: `Noko Entries Error for Project ${projectId}`,
+                description: `Error fetching entries for project ${projectId}`,
               },
-              text: `Error fetching entries: ${error.message || 'Unknown error'}`
-            }
-          ]
+              text: `Error fetching entries: ${error.message || 'Unknown error'}`,
+            },
+          ],
         };
       }
     }
   );
-  
-  // Single entry resource
+
+  // List all entries callback
+  const listEntriesCallback: ListResourcesCallback = async (_extra) => {
+    try {
+      logger.debug("Listing all entries...");
+      // Noko API requires a user_id or project_id to list entries.
+      // We'll leave this unimplemented for now, as listing all entries
+      // for all users could be a very large and slow request.
+      // A more specific tool or resource would be better.
+      logger.debug("Listing all entries is not supported without filters.");
+      return { resources: [] };
+    } catch (error: any) {
+      logger.error("Error listing all entries", error.message);
+      return { resources: [] };
+    }
+  };
+
+  // Register all entries resource template
+  logger.debug("Registering all entries resource template");
+  server.resource(
+    "entries",
+    new ResourceTemplate("noko://entries", {
+      list: listEntriesCallback,
+    }),
+    async (uri) => {
+      logger.debug("Fetching all entries content is not supported");
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            metadata: {
+              title: "Noko Entries",
+              description: "Listing all entries is not supported without a filter like user_id or project_id."
+            },
+            text: "Listing all entries is not supported without a filter like user_id or project_id."
+          }
+        ]
+      };
+    }
+  );
+
+  // Register single entry resource template
+  logger.debug("Registering single entry resource template");
   server.resource(
     "entry",
     new ResourceTemplate("noko://entry/{id}", { list: undefined }),
     async (uri, { id }) => {
       logger.debug(`Fetching entry ${id}`);
       try {
-        const entry = await makeRequest(`/entries/${id}`);
+        const entry = (await makeRequest(`/entries/${id}`)) as Entry;
         
         return {
           contents: [

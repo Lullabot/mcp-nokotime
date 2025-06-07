@@ -5,7 +5,7 @@ import { registerProjectTools } from './tools/projects.js';
 import { registerUserTools } from './tools/users.js';
 import { NokoApi } from './noko-api.js';
 // Re-enable resources with improved error handling
-// import { registerResources } from './resources/index.js';
+import { registerResources } from './resources/index.js';
 
 // Load environment variables
 dotenv.config();
@@ -28,7 +28,7 @@ export class NokoServer {
       description: "Model Context Protocol server for Noko time tracking API",
       capabilities: {
         tools: true,
-        resources: false, // Explicitly disable resources for now
+        resources: true,
       }
     });
 
@@ -38,11 +38,11 @@ export class NokoServer {
     registerUserTools(this.server, nokoApi);
 
     // TODO: Refactor and re-enable resource registration
-    // try {
-    //   registerResources(this.server, apiToken, consoleLogger);
-    // } catch (error) {
-    //   console.error("Failed to register resources, continuing with tools only:", error);
-    // }
+    try {
+      registerResources(this.server, nokoApi);
+    } catch (error) {
+      console.error("Failed to register resources, continuing with tools only:", error);
+    }
   }
 
   async run(): Promise<void> {

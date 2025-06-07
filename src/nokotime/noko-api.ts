@@ -1,4 +1,5 @@
 import axios, { Method } from 'axios';
+import { Project } from './types';
 
 const TEXT = "text" as const;
 
@@ -55,21 +56,8 @@ export class NokoApi {
           continue;
         }
 
-        if (value !== null && value !== undefined) {
-          // Handle array parameters
-          if (Array.isArray(value)) {
-            // Noko expects array parameters in the format key[]=value
-            const arrayKey = `${key}[]`;
-            if (!(arrayKey in params)) {
-              params[arrayKey] = [];
-            }
-
-            for (const item of value) {
-              params[arrayKey].push(String(item));
-            }
-          } else {
-            params[key] = value;
-          }
+        if (value !== null && value !== undefined && value !== '') {
+          params[key] = value;
         }
       }
     } else {
@@ -111,6 +99,35 @@ export class NokoApi {
         return createErrorResponse(`Noko API Error: ${error.response.status} ${error.response.statusText} - ${JSON.stringify(error.response.data)}`);
       }
       return createErrorResponse(`Noko API Error: ${error.message}`);
+    }
+  }
+
+  async searchProjects(searchTerm: string) {
+    try {
+      const allProjectsResponse = await this.request('GET', '/projects', { enabled: true, per_page: 1000 });
+      
+      if (!allProjectsResponse.content || allProjectsResponse.content.length === 0) {
+        return createErrorResponse("Could not retrieve project list.");
+      }
+
+      const content = JSON.parse(allProjectsResponse.content[0].text);
+      const allProjects = content.data || content; // Handle paginated and non-paginated responses
+
+      if (!Array.isArray(allProjects)) {
+        return createErrorResponse("Project list is not in the expected format.");
+      }
+      
+      const searchKeywords = searchTerm.toLowerCase().split(/[^a-z0-9]+/).filter(kw => kw);
+
+      const filteredProjects: Project[] = allProjects.filter((project: Project) => {
+        const projectName = project.name.toLowerCase();
+        return searchKeywords.every(keyword => projectName.includes(keyword));
+      });
+
+      return createSuccessResponse(filteredProjects);
+    } catch (error: any) {
+      console.error(`Error searching projects: ${error.message}`);
+      return createErrorResponse(`Error searching projects: ${error.message}`);
     }
   }
 
