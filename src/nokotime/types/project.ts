@@ -1,6 +1,6 @@
-import { Invoice, NokoImport } from './entry';
-import { ProjectGroup } from './project-group';
-import { User } from './user';
+import { Invoice, NokoImport } from './entry.js';
+import { ProjectGroup } from './project-group.js';
+import { User } from './user.js';
 
 export interface Project {
   id: number;

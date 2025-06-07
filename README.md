@@ -160,6 +160,67 @@ The server provides the following tools to AI assistants:
      - Object with `data` (array of users) and `pagination` properties when pagination is present
      - Pagination includes links to `first`, `last`, `next`, and `prev` pages when available
 
+## Convenience Tools for Common Date Ranges
+
+The server also provides convenience tools for frequently used date ranges:
+
+7. `noko_get_project_entries_past_week` - Get time entries for a project from the past 7 days
+   - Required parameters:
+     - `project_id` - ID of the project
+   - Optional parameters:
+     - `per_page` - Number of results per page (1-1000, default: 30)
+     - `page` - Page number (starts at 1)
+
+8. `noko_get_project_entries_past_month` - Get time entries for a project from the past 30 days
+   - Required parameters:
+     - `project_id` - ID of the project
+   - Optional parameters:
+     - `per_page` - Number of results per page (1-1000, default: 30)
+     - `page` - Page number (starts at 1)
+
+9. `noko_get_project_entries_current_week` - Get time entries for a project from the current week (Monday to Sunday)
+   - Required parameters:
+     - `project_id` - ID of the project
+   - Optional parameters:
+     - `per_page` - Number of results per page (1-1000, default: 30)
+     - `page` - Page number (starts at 1)
+
+10. `noko_get_project_entries_date_range` - Get time entries for a project with flexible date range presets
+    - Required parameters:
+      - `project_id` - ID of the project
+      - `period` - Date range preset: 'past_week', 'past_month', 'current_week', 'current_month'
+    - Optional parameters:
+      - `per_page` - Number of results per page (1-1000, default: 30)
+      - `page` - Page number (starts at 1)
+
+### Enhanced noko_list_entries Tool
+
+The `noko_list_entries` tool now supports a `date_preset` parameter for quick date range selection:
+- `date_preset` - Choose from: 'past_week', 'past_month', 'current_week', 'current_month'
+- When provided, this automatically sets the `from` and `to` parameters
+- Example: `noko_list_entries({ project_ids: [123], date_preset: 'past_week' })`
+
+## Resources
+
+The server provides MCP resources for easy data access:
+
+### Standard Resources
+- `noko://users` - List of all users
+- `noko://user/{id}` - Individual user details
+- `noko://projects` - List of all projects  
+- `noko://project/{id}` - Individual project details
+- `noko://project/{projectId}/entries` - All entries for a specific project
+- `noko://entries` - All entries (requires additional filters)
+- `noko://entry/{id}` - Individual entry details
+
+### Convenience Date-Based Resources
+- `noko://project/{projectId}/entries/week` - Past 7 days entries for a project
+- `noko://project/{projectId}/entries/month` - Past 30 days entries for a project
+- `noko://project/{projectId}/entries/current-week` - Current week entries for a project
+- `noko://project/{projectId}/entries/current-month` - Current month entries for a project
+
+These resources automatically calculate date ranges and provide quick access to commonly requested time entry data.
+
 ## Safety Features
 
 ### Confirmation for Destructive Operations

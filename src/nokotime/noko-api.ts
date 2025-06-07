@@ -1,5 +1,5 @@
 import axios, { Method } from 'axios';
-import { Project } from './types';
+import { Project } from './types/index.js';
 
 const TEXT = "text" as const;
 

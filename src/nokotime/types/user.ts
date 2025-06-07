@@ -1,4 +1,4 @@
-import { Team } from './team';
+import { Team } from './team.js';
 
 export type UserState = 'active' | 'pending' | 'disabled' | 'suspended';
 export type UserRole = 'leader' | 'supervisor' | 'coworker' | 'contractor';

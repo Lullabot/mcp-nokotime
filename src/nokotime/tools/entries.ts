@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { NokoApi } from '../noko-api.js';
+import { getDateRange } from '../utils/date-ranges.js';
 
 // Paths and methods for entry-related endpoints
 export const ENTRY_TOOL_PATHS = {
@@ -8,6 +9,10 @@ export const ENTRY_TOOL_PATHS = {
   "noko_create_entry": "/entries",
   "noko_edit_entry": "/entries/:id",
   "noko_delete_entry": "/entries/:id",
+  "noko_get_project_entries_past_week": "/entries",
+  "noko_get_project_entries_past_month": "/entries",
+  "noko_get_project_entries_current_week": "/entries",
+  "noko_get_project_entries_date_range": "/entries",
 };
 
 export const ENTRY_TOOL_METHODS = {
@@ -15,6 +20,10 @@ export const ENTRY_TOOL_METHODS = {
   "noko_create_entry": "POST",
   "noko_edit_entry": "PUT",
   "noko_delete_entry": "DELETE",
+  "noko_get_project_entries_past_week": "GET",
+  "noko_get_project_entries_past_month": "GET",
+  "noko_get_project_entries_current_week": "GET",
+  "noko_get_project_entries_date_range": "GET",
 };
 
 /**
@@ -71,6 +80,8 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
         .describe("Number of results per page (1-1000, default: 30)"),
       page: z.number().min(1).optional()
         .describe("Page number (starts at 1)"),
+      date_preset: z.enum(['past_week', 'past_month', 'current_week', 'current_month']).optional()
+        .describe("Preset date range (overrides from/to if provided)"),
     },
     async (args: any) => {
       // If ID is provided, get specific entry
@@ -78,8 +89,21 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
         return nokoApi.request('GET', '/entries/:id', {}, { id: args.id });
       }
       
+      // Handle date preset if provided
+      let processedArgs = { ...args };
+      if (args.date_preset) {
+        const dateRange = getDateRange(args.date_preset);
+        processedArgs = {
+          ...args,
+          from: dateRange.from,
+          to: dateRange.to
+        };
+        // Remove date_preset from API call
+        delete processedArgs.date_preset;
+      }
+      
       // Otherwise, list entries with filters
-      const { id: _id, ...listArgs } = args;
+      const { id: _id, ...listArgs } = processedArgs;
       return nokoApi.request('GET', '/entries', listArgs);
     }
   );
@@ -151,6 +175,101 @@ export function registerEntryTools(server: McpServer, nokoApi: NokoApi): void {
     },
     async (args: any) => {
       return nokoApi.request('DELETE', '/entries/:id', {}, { id: args.id });
+    }
+  );
+
+  // Register convenience tools for common date ranges
+  server.tool(
+    "noko_get_project_entries_past_week",
+    "Get time entries for a project from the past 7 days",
+    {
+      project_id: z.number()
+        .describe("ID of the project"),
+      per_page: z.number().min(1).max(1000).optional()
+        .describe("Number of results per page (1-1000, default: 30)"),
+      page: z.number().min(1).optional()
+        .describe("Page number (starts at 1)"),
+    },
+    async (args: any) => {
+      const dateRange = getDateRange('past_week');
+      return nokoApi.request('GET', '/entries', {
+        project_ids: [args.project_id],
+        from: dateRange.from,
+        to: dateRange.to,
+        per_page: args.per_page,
+        page: args.page
+      });
+    }
+  );
+
+  server.tool(
+    "noko_get_project_entries_past_month",
+    "Get time entries for a project from the past 30 days",
+    {
+      project_id: z.number()
+        .describe("ID of the project"),
+      per_page: z.number().min(1).max(1000).optional()
+        .describe("Number of results per page (1-1000, default: 30)"),
+      page: z.number().min(1).optional()
+        .describe("Page number (starts at 1)"),
+    },
+    async (args: any) => {
+      const dateRange = getDateRange('past_month');
+      return nokoApi.request('GET', '/entries', {
+        project_ids: [args.project_id],
+        from: dateRange.from,
+        to: dateRange.to,
+        per_page: args.per_page,
+        page: args.page
+      });
+    }
+  );
+
+  server.tool(
+    "noko_get_project_entries_current_week",
+    "Get time entries for a project from the current week (Monday to Sunday)",
+    {
+      project_id: z.number()
+        .describe("ID of the project"),
+      per_page: z.number().min(1).max(1000).optional()
+        .describe("Number of results per page (1-1000, default: 30)"),
+      page: z.number().min(1).optional()
+        .describe("Page number (starts at 1)"),
+    },
+    async (args: any) => {
+      const dateRange = getDateRange('current_week');
+      return nokoApi.request('GET', '/entries', {
+        project_ids: [args.project_id],
+        from: dateRange.from,
+        to: dateRange.to,
+        per_page: args.per_page,
+        page: args.page
+      });
+    }
+  );
+
+  server.tool(
+    "noko_get_project_entries_date_range",
+    "Get time entries for a project with flexible date range presets",
+    {
+      project_id: z.number()
+        .describe("ID of the project"),
+      period: z.enum(['past_week', 'past_month', 'current_week', 'current_month'])
+        .describe("Date range preset"),
+      per_page: z.number().min(1).max(1000).optional()
+        .describe("Number of results per page (1-1000, default: 30)"),
+      page: z.number().min(1).optional()
+        .describe("Page number (starts at 1)"),
+    },
+    async (args: any) => {
+      const dateRange = getDateRange(args.period);
+      return nokoApi.request('GET', '/entries', {
+        project_ids: [args.project_id],
+        from: dateRange.from,
+        to: dateRange.to,
+        per_page: args.per_page,
+        page: args.page
+      });
     }
   );
 } 

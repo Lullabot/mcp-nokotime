@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk';
-import { NokoApi } from '../noko-api';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { NokoApi } from '../noko-api.js';
 
 // Paths and methods for project-related endpoints
 export const PROJECT_TOOL_PATHS = {
@@ -38,7 +38,7 @@ export function registerProjectTools(server: McpServer, nokoApi: NokoApi): void 
       page: z.number().min(1).optional()
         .describe("Page number (starts at 1)"),
     },
-    async (args) => {
+    async (args: any) => {
       // If a name is provided, perform a smart search
       if (args.name) {
         return nokoApi.searchProjects(args.name);

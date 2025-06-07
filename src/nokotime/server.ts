@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
-import { McpServer, StdioServerTransport } from '@modelcontextprotocol/sdk';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerEntryTools } from './tools/entries.js';
 import { registerProjectTools } from './tools/projects.js';
 import { registerUserTools } from './tools/users.js';
@@ -46,9 +47,9 @@ export class NokoServer {
   }
 
   async run(): Promise<void> {
-    const transport = new StdioServerTransport(this.server);
+    const transport = new StdioServerTransport();
     handleSignals(this.server);
-    await transport.listen();
+    await this.server.connect(transport);
   }
 }
 

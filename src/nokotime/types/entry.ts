@@ -1,5 +1,5 @@
-import { Project } from './project';
-import { User } from './user';
+import { Project } from './project.js';
+import { User } from './user.js';
 
 export interface Tag {
   id: number;

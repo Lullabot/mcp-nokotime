@@ -1,6 +1,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { NokoApi } from '../noko-api.js';
 import { Entry, Project, User } from '../types/index.js';
+import { getDateRange } from '../utils/date-ranges.js';
 
 // Logger interface
 interface Logger {
@@ -432,6 +433,183 @@ function registerEntryResources(
           }
         ]
       };
+    }
+  );
+
+  // Register convenience resources for date-based entries
+  logger.debug("Registering project entries past week resource template");
+  server.resource(
+    "project_entries_week",
+    new ResourceTemplate("noko://project/{projectId}/entries/week", { list: undefined }),
+    async (uri, { projectId }) => {
+      logger.debug(`Fetching past week entries for project ${projectId}`);
+      try {
+        const dateRange = getDateRange('past_week');
+        const entries = (await makeRequest('/entries', {
+          project_ids: [parseInt(projectId as string)],
+          from: dateRange.from,
+          to: dateRange.to
+        })) as Entry[];
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Past Week Entries for Project ${projectId}`,
+                description: `Time entries for project ${projectId} from the past 7 days (${dateRange.from} to ${dateRange.to})`
+              },
+              text: JSON.stringify(entries, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching past week entries for project ${projectId}`, error.message);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Past Week Entries Error for Project ${projectId}`,
+                description: `Error fetching past week entries for project ${projectId}`
+              },
+              text: `Error fetching past week entries: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
+    }
+  );
+
+  logger.debug("Registering project entries past month resource template");
+  server.resource(
+    "project_entries_month",
+    new ResourceTemplate("noko://project/{projectId}/entries/month", { list: undefined }),
+    async (uri, { projectId }) => {
+      logger.debug(`Fetching past month entries for project ${projectId}`);
+      try {
+        const dateRange = getDateRange('past_month');
+        const entries = (await makeRequest('/entries', {
+          project_ids: [parseInt(projectId as string)],
+          from: dateRange.from,
+          to: dateRange.to
+        })) as Entry[];
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Past Month Entries for Project ${projectId}`,
+                description: `Time entries for project ${projectId} from the past 30 days (${dateRange.from} to ${dateRange.to})`
+              },
+              text: JSON.stringify(entries, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching past month entries for project ${projectId}`, error.message);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Past Month Entries Error for Project ${projectId}`,
+                description: `Error fetching past month entries for project ${projectId}`
+              },
+              text: `Error fetching past month entries: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
+    }
+  );
+
+  logger.debug("Registering project entries current week resource template");
+  server.resource(
+    "project_entries_current_week",
+    new ResourceTemplate("noko://project/{projectId}/entries/current-week", { list: undefined }),
+    async (uri, { projectId }) => {
+      logger.debug(`Fetching current week entries for project ${projectId}`);
+      try {
+        const dateRange = getDateRange('current_week');
+        const entries = (await makeRequest('/entries', {
+          project_ids: [parseInt(projectId as string)],
+          from: dateRange.from,
+          to: dateRange.to
+        })) as Entry[];
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Current Week Entries for Project ${projectId}`,
+                description: `Time entries for project ${projectId} for the current week (${dateRange.from} to ${dateRange.to})`
+              },
+              text: JSON.stringify(entries, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching current week entries for project ${projectId}`, error.message);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Current Week Entries Error for Project ${projectId}`,
+                description: `Error fetching current week entries for project ${projectId}`
+              },
+              text: `Error fetching current week entries: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
+    }
+  );
+
+  logger.debug("Registering project entries current month resource template");
+  server.resource(
+    "project_entries_current_month",
+    new ResourceTemplate("noko://project/{projectId}/entries/current-month", { list: undefined }),
+    async (uri, { projectId }) => {
+      logger.debug(`Fetching current month entries for project ${projectId}`);
+      try {
+        const dateRange = getDateRange('current_month');
+        const entries = (await makeRequest('/entries', {
+          project_ids: [parseInt(projectId as string)],
+          from: dateRange.from,
+          to: dateRange.to
+        })) as Entry[];
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Current Month Entries for Project ${projectId}`,
+                description: `Time entries for project ${projectId} for the current month (${dateRange.from} to ${dateRange.to})`
+              },
+              text: JSON.stringify(entries, null, 2)
+            }
+          ]
+        };
+      } catch (error: any) {
+        logger.error(`Error fetching current month entries for project ${projectId}`, error.message);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              metadata: {
+                title: `Current Month Entries Error for Project ${projectId}`,
+                description: `Error fetching current month entries for project ${projectId}`
+              },
+              text: `Error fetching current month entries: ${error.message || 'Unknown error'}`
+            }
+          ]
+        };
+      }
     }
   );
 

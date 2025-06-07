@@ -36,8 +36,8 @@ export interface NokoResponse<_T> {
   [key: string]: any;
 }
 
-export * from './entry';
-export * from './project';
-export * from './project-group';
-export * from './user';
-export * from './team'; 
+export * from './entry.js';
+export * from './project.js';
+export * from './project-group.js';
+export * from './user.js';
+export * from './team.js'; 
