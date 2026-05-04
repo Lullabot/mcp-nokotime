@@ -1,0 +1,80 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-nokotime",
+  "display_name": "Noko Time Tracking",
+  "version": "0.1.0",
+  "description": "Access and manage your Noko time tracking entries, projects, and users directly from Claude.",
+  "long_description": "Interact with the [Noko time tracking API](https://api.nokotime.com/v2) from Claude. List, create, edit, and delete time entries; search projects; and list users. Includes date-range convenience tools (past week, past month, current week) for fast time reporting.",
+  "author": {
+    "name": "Lullabot",
+    "url": "https://github.com/Lullabot"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lullabot/mcp-nokotime"
+  },
+  "license": "MIT",
+  "keywords": ["noko", "nokotime", "time tracking", "mcp"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "NOKO_API_TOKEN": "${user_config.noko_api_token}"
+      }
+    }
+  },
+  "user_config": {
+    "noko_api_token": {
+      "type": "string",
+      "title": "Noko API Token",
+      "description": "Your personal Noko API token. Find it at nokotime.com → Profile → API token.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "tools": [
+    {
+      "name": "noko_list_entries",
+      "description": "List time entries with optional filters and pagination, or get a specific entry by ID"
+    },
+    {
+      "name": "noko_create_entry",
+      "description": "Create a new time entry"
+    },
+    {
+      "name": "noko_edit_entry",
+      "description": "Edit an existing time entry"
+    },
+    {
+      "name": "noko_delete_entry",
+      "description": "Delete a time entry permanently"
+    },
+    {
+      "name": "noko_get_project_entries_past_week",
+      "description": "Get time entries for a project from the past 7 days"
+    },
+    {
+      "name": "noko_get_project_entries_past_month",
+      "description": "Get time entries for a project from the past 30 days"
+    },
+    {
+      "name": "noko_get_project_entries_current_week",
+      "description": "Get time entries for a project from the current week (Monday to Sunday)"
+    },
+    {
+      "name": "noko_get_project_entries_date_range",
+      "description": "Get time entries for a project with flexible date range presets"
+    },
+    {
+      "name": "noko_list_projects",
+      "description": "List all available projects with optional filtering and pagination"
+    },
+    {
+      "name": "noko_list_users",
+      "description": "List all users with optional filtering and pagination"
+    }
+  ]
+}

@@ -2,7 +2,6 @@
 __pycache__/
 *.py[oc]
 build/
-dist/
 wheels/
 *.egg-info
 
@@ -13,7 +12,6 @@ wheels/
 node_modules/
 
 # TypeScript build output
-dist/
 *.tsbuildinfo
 
 # Environment variables
@@ -22,6 +20,10 @@ dist/
 # IDE files
 .vscode/
 .idea/
+
+# mcpb build artifacts
+bundle/
+*.mcpb
 
 # Logs
 *.log
